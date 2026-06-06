@@ -783,6 +783,55 @@ def run_backtest():
         raise typer.Exit(code=1)
 
 
+@app.command("run")
+def run_paper(
+    account: str = typer.Option(..., "--account", help="Account name"),
+    interval: int = typer.Option(300, "--interval", help="Interval between ticks in seconds"),
+    ticker: str = typer.Option(None, "--ticker", help="Primary ticker to monitor"),
+):
+    """Run paper trading (live simulation) for an account."""
+    try:
+        from rich.panel import Panel
+
+        ph = get_phantom()
+
+        # Verify account exists
+        acct = ph.accounts.get(account)
+
+        # Get broker profile for display
+        profile = ph.brokers.get(acct.broker_profile_id)
+
+        # Default ticker to first supported one if not specified
+        if not ticker:
+            ticker = "AAPL"  # Default fallback
+
+        # Show startup banner
+        startup_info = (
+            f"Account: {acct.name}\n"
+            f"Broker: {profile.name}\n"
+            f"Capital: {acct.initial_capital} {acct.base_currency}\n"
+            f"Ticker: {ticker}\n"
+            f"Interval: {interval}s"
+        )
+        console.print(Panel(startup_info, title="Starting Paper Trading", style="bold green"))
+        console.print("[yellow]Press Ctrl+C to stop[/yellow]")
+
+        try:
+            # Start paper trading
+            ph.runner.paper_trade(
+                account_id=acct.id,
+                tickers=[ticker],
+                interval=interval,
+            )
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Shutting down...[/yellow]")
+            console.print("[green]Paper trading stopped gracefully.[/green]")
+
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
 @replay_app.command("all")
 def replay_all(account: str = typer.Option(..., "--account")):
     """Replay all un-replayed positions for an account."""

@@ -64,3 +64,51 @@ class CostEngine:
             fx=fx,
             total=total,
         )
+
+    def overnight_cost(
+        self,
+        notional: float,
+        direction: str,
+        reference_rate: float,
+    ) -> float:
+        """Calculate overnight financing charge for a CFD position.
+
+        Args:
+            notional: Position notional value (quantity * price)
+            direction: "long" or "short"
+            reference_rate: Current reference rate (SOFR, ESTR, etc.)
+
+        Returns:
+            Overnight charge amount
+        """
+        return self._profile.overnight.calculate(
+            notional=notional,
+            direction=direction,
+            reference_rate=reference_rate,
+        )
+
+    def dividend_adjustment(
+        self,
+        gross: float,
+        direction: str,
+        instrument_type: str,
+        country: str = "US",
+    ) -> float:
+        """Calculate dividend adjustment for a position.
+
+        Args:
+            gross: Gross dividend amount (dividend_per_share * quantity)
+            direction: "long" or "short"
+            instrument_type: "stock" or "cfd"
+            country: Country code for withholding rate lookup
+
+        Returns:
+            Adjustment amount (may be positive or negative)
+        """
+        if instrument_type == "stock":
+            withholding_rate = self._profile.dividend.withholding_rates.get(country, 0.15)
+            return gross * (1 - withholding_rate)
+        elif direction == "long":
+            return gross * self._profile.dividend.cfd_dividend_adjustment
+        else:  # short CFD
+            return -(gross * self._profile.dividend.cfd_short_dividend_charge)

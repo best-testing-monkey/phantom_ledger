@@ -212,13 +212,13 @@ Check off each story as it is completed.
 ### E9 · Simulation Engine (remaining)
 > Depends on E8 (margin hook), E3-S10 (overnight), E4-S05/S06 (dividends/rates).
 
-- [ ] E9-S05 — [LiveClock: wall-clock time, advance() blocks until next tick](tickets/e09-s05.md)
-- [ ] E9-S06 — [SimulationEngine.run_paper(): LiveClock + LiveProvider loop](tickets/e09-s06.md)
-- [ ] E9-S07 — [CLI: `phantom run --mode paper --interval 300`](tickets/e09-s07.md)
-- [ ] E9-S08 — [Graceful shutdown (SIGINT/SIGTERM)](tickets/e09-s08.md)
-- [ ] E9-S09 — [Overnight cost accrual hook in loop](tickets/e09-s09.md)
-- [ ] E9-S10 — [Dividend hook in loop](tickets/e09-s10.md)
-- [ ] E9-S11 — [Margin check hook in loop](tickets/e09-s11.md)
+- [x] E9-S05 — [LiveClock: wall-clock time, advance() blocks until next tick](tickets/e09-s05.md)
+- [x] E9-S06 — [SimulationEngine.run_paper(): LiveClock + LiveProvider loop](tickets/e09-s06.md)
+- [x] E9-S07 — [CLI: `phantom run --mode paper --interval 300`](tickets/e09-s07.md)
+- [x] E9-S08 — [Graceful shutdown (SIGINT/SIGTERM)](tickets/e09-s08.md)
+- [x] E9-S09 — [Overnight cost accrual hook in loop](tickets/e09-s09.md)
+- [x] E9-S10 — [Dividend hook in loop](tickets/e09-s10.md)
+- [x] E9-S11 — [Margin check hook in loop](tickets/e09-s11.md)
 
 ### E10 · Replay (remaining)
 > Depends on E9-S09/S10 (overnight/dividend) and E8-S01 (margin).

@@ -1,5 +1,6 @@
 from datetime import datetime
 import sqlite3
+from threading import Event
 
 from phantom.costs.engine import CostEngine
 from phantom.db.repositories.account_repo import AccountRepo
@@ -51,3 +52,43 @@ class RunnerAPI:
         position_repo = PositionRepo(self._conn)
         engine = ReplayEngine(data_provider, cost_engine, position_repo)
         return engine.replay_position(position)
+
+    def paper_trade(
+        self,
+        account_id: str,
+        tickers: list[str],
+        interval: float = 300.0,
+        stop_event: Event | None = None,
+        data_provider=None,
+    ) -> None:
+        """Run paper trading loop.
+
+        Args:
+            account_id: Account ID to trade
+            tickers: List of tickers to fetch bars for
+            interval: Interval in seconds between ticks (default: 300)
+            stop_event: threading.Event to signal shutdown
+            data_provider: Optional data provider (defaults to LiveProvider)
+        """
+        account = self._account_repo.get(account_id)
+        profile = self._broker_repo.get(account.broker_profile_id)
+        cost_engine = CostEngine(profile)
+
+        if data_provider is None:
+            from phantom.config import get_data_dir
+            from phantom.data.alpaca import LiveProvider
+
+            data_provider = LiveProvider(get_data_dir())
+
+        engine = SimulationEngine(
+            conn=self._conn,
+            data_provider=data_provider,
+            cost_engine=cost_engine,
+        )
+
+        engine.run_paper(
+            account_id=account_id,
+            tickers=tickers,
+            interval=interval,
+            stop_event=stop_event,
+        )
