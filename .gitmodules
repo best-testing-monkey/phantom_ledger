@@ -1,0 +1,3 @@
+[submodule "src/phantom/data/price_cache"]
+	path = src/phantom/data/price_cache
+	url = git@github.com:best-testing-monkey/price_cache.git
