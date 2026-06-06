@@ -1,7 +1,10 @@
 from datetime import datetime
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import pandas as pd
+
+if TYPE_CHECKING:
+    from phantom.data.dividends import DividendEvent
 
 
 class DataProvider(Protocol):
@@ -11,4 +14,6 @@ class DataProvider(Protocol):
 
     def get_bid_ask(self, ticker: str) -> tuple[float, float] | None: ...
 
-    def get_dividends(self, ticker: str, start: datetime, end: datetime) -> list: ...
+    def get_dividends(
+        self, ticker: str, start: datetime, end: datetime
+    ) -> list["DividendEvent"]: ...

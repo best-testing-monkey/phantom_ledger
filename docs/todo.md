@@ -168,11 +168,11 @@ Check off each story as it is completed.
 ### E4 · Data Layer (remaining)
 > Dividends + rates needed by overnight/dividend hooks; LiveProvider needed by paper trade loop.
 
-- [ ] E4-S05 — [Dividend data fetching (yfinance ex-dates + amounts, cached)](tickets/e04-s05.md)
-- [ ] E4-S06 — [Reference rate fetcher: SOFR (NY Fed), ESTR (ECB SDMX)](tickets/e04-s06.md)
-- [ ] E4-S07 — [CLI: `phantom data fetch-rates`](tickets/e04-s07.md)
-- [ ] E4-S08 — [LiveProvider: real-time price + bid/ask](tickets/e04-s08.md)
-- [ ] E4-S09 — [Data staleness detection for paper-trade mode](tickets/e04-s09.md)
+- [x] E4-S05 — [Dividend data fetching (yfinance ex-dates + amounts, cached)](tickets/e04-s05.md)
+- [x] E4-S06 — [Reference rate fetcher: SOFR (NY Fed), ESTR (ECB SDMX)](tickets/e04-s06.md)
+- [x] E4-S07 — [CLI: `phantom data fetch-rates`](tickets/e04-s07.md)
+- [x] E4-S08 — [LiveProvider: real-time price + bid/ask](tickets/e04-s08.md)
+- [x] E4-S09 — [Data staleness detection for paper-trade mode](tickets/e04-s09.md)
 
 ### E5 · Account System (remaining)
 

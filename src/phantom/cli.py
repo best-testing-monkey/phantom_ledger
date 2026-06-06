@@ -593,6 +593,38 @@ def data_fetch(
         raise typer.Exit(code=1)
 
 
+@data_app.command("fetch-rates")
+def data_fetch_rates(
+    rate: str = typer.Option(..., "--rate", help="Rate name: SOFR or ESTR"),
+    start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option(None, "--end", help="End date (YYYY-MM-DD), defaults to today"),
+):
+    """Fetch and cache reference rates (SOFR, ESTR)."""
+    from datetime import date, datetime
+
+    try:
+        rate_upper = rate.upper()
+        if rate_upper not in ("SOFR", "ESTR"):
+            console.print(f"[red]Error:[/red] Unknown rate: {rate}. Supported: SOFR, ESTR")
+            raise typer.Exit(code=1)
+
+        ph = get_phantom()
+        start_dt = datetime.fromisoformat(start)
+        end_dt = (
+            datetime.fromisoformat(end)
+            if end
+            else datetime.combine(date.today(), datetime.min.time())
+        )
+
+        with console.status(f"Fetching {rate_upper}..."):
+            series = ph.data.fetch_rates(rate=rate_upper, start=start_dt, end=end_dt)
+
+        console.print(f"Fetched {len(series)} data points for {rate_upper}")
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
 @broker_app.command("list")
 def broker_list():
     """List all loaded broker profiles."""

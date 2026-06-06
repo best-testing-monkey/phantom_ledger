@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from phantom.data.dividends import DividendEvent, get_dividends
 from phantom.data.price_store import is_cache_fresh, read_cache, write_cache
 
 logger = logging.getLogger(__name__)
@@ -40,5 +41,5 @@ class HistoricalProvider:
     def get_bid_ask(self, ticker: str) -> tuple[float, float] | None:
         return None
 
-    def get_dividends(self, ticker: str, start: datetime, end: datetime) -> list:
-        return []
+    def get_dividends(self, ticker: str, start: datetime, end: datetime) -> list[DividendEvent]:
+        return get_dividends(ticker, start, end, self._data_dir)
