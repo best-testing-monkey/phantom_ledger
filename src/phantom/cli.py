@@ -95,11 +95,25 @@ def report_show():
 
 
 @data_app.command("fetch")
-def data_fetch():
-    """Fetch market data."""
+def data_fetch(
+    ticker: str = typer.Option(..., "--ticker", help="Ticker symbol"),
+    start: str = typer.Option(..., "--start", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option(None, "--end", help="End date (YYYY-MM-DD), defaults to today"),
+):
+    """Fetch and cache historical price data."""
+    from datetime import date, datetime
+
     try:
-        get_phantom()
-        console.print("Data fetch not yet implemented")
+        ph = get_phantom()
+        start_dt = datetime.fromisoformat(start)
+        end_dt = (
+            datetime.fromisoformat(end)
+            if end
+            else datetime.combine(date.today(), datetime.min.time())
+        )
+        with console.status(f"Fetching {ticker}..."):
+            df = ph.data.fetch_prices(ticker=ticker, start=start_dt, end=end_dt)
+        console.print(f"Fetched {len(df)} bars for {ticker}")
     except PhantomError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1)
