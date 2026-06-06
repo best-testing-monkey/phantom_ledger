@@ -155,15 +155,15 @@ Check off each story as it is completed.
 ### E3 · Cost Engine (full)
 > Adds overnight, FX, dividends. Needed by E9-S09/S10 hooks.
 
-- [ ] E3-S06 — [CommissionModel: "per_share" and "tiered" types](tickets/e03-s06.md)
-- [ ] E3-S07 — [CommissionModel: "zero" type (monthly free volume)](tickets/e03-s07.md)
-- [ ] E3-S08 — [SlippageModel: "volume_based" type](tickets/e03-s08.md)
-- [ ] E3-S09 — [SpreadModel: "market" mode (live bid/ask override)](tickets/e03-s09.md)
-- [ ] E3-S10 — [OvernightModel.calculate(): reference rate + markup, triple swap day](tickets/e03-s10.md)
-- [ ] E3-S11 — [FX conversion cost](tickets/e03-s11.md)
-- [ ] E3-S12 — [DividendModel: stock withholding by country](tickets/e03-s12.md)
-- [ ] E3-S13 — [DividendModel: CFD dividend adjustment](tickets/e03-s13.md)
-- [ ] E3-S14 — [Unit tests: overnight, FX, dividend](tickets/e03-s14.md)
+- [x] E3-S06 — [CommissionModel: "per_share" and "tiered" types](tickets/e03-s06.md)
+- [x] E3-S07 — [CommissionModel: "zero" type (monthly free volume)](tickets/e03-s07.md)
+- [x] E3-S08 — [SlippageModel: "volume_based" type](tickets/e03-s08.md)
+- [x] E3-S09 — [SpreadModel: "market" mode (live bid/ask override)](tickets/e03-s09.md)
+- [x] E3-S10 — [OvernightModel.calculate(): reference rate + markup, triple swap day](tickets/e03-s10.md)
+- [x] E3-S11 — [FX conversion cost](tickets/e03-s11.md)
+- [x] E3-S12 — [DividendModel: stock withholding by country](tickets/e03-s12.md)
+- [x] E3-S13 — [DividendModel: CFD dividend adjustment](tickets/e03-s13.md)
+- [x] E3-S14 — [Unit tests: overnight, FX, dividend](tickets/e03-s14.md)
 
 ### E4 · Data Layer (remaining)
 > Dividends + rates needed by overnight/dividend hooks; LiveProvider needed by paper trade loop.

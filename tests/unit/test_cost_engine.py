@@ -86,3 +86,26 @@ class TestCostEngine:
             fx_required=True,
         )
         assert breakdown.fx == pytest.approx(100.0 * 10 * 0.0025)
+
+    def test_fx_cost_matches_profile(self, profile):
+        engine = CostEngine(profile)
+        breakdown = engine.entry_costs(
+            price=150.0,
+            quantity=50,
+            ticker="AAPL",
+            instrument_type="stock",
+            fx_required=True,
+        )
+        expected_fx = 150.0 * 50 * profile.fx_conversion_pct
+        assert breakdown.fx == pytest.approx(expected_fx)
+
+    def test_exit_costs_fx_applied(self, profile):
+        engine = CostEngine(profile)
+        breakdown = engine.exit_costs(
+            price=100.0,
+            quantity=10,
+            ticker="AAPL",
+            instrument_type="stock",
+            fx_required=True,
+        )
+        assert breakdown.fx == pytest.approx(100.0 * 10 * 0.0025)

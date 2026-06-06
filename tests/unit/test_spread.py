@@ -34,3 +34,21 @@ class TestSpreadModel:
     def test_zero_fixed_spread(self):
         model = SpreadModel(model_type="fixed", fixed_spread_pct=0.0)
         assert model.calculate(price=100.0, quantity=10) == 0.0
+
+
+class TestMarketSpread:
+    def test_market_with_bid_ask(self):
+        model = SpreadModel(model_type="market", fixed_spread_pct=0.0005)
+        result = model.calculate(price=100.0, quantity=10, bid=99.9, ask=100.1)
+        expected = (100.1 - 99.9) / 2 * 10
+        assert result == pytest.approx(expected)
+
+    def test_market_without_bid_ask_fallback(self):
+        model = SpreadModel(model_type="market", fixed_spread_pct=0.0005)
+        result = model.calculate(price=100.0, quantity=10)
+        assert result == pytest.approx(0.0005 * 100.0 * 10)
+
+    def test_market_zero_spread(self):
+        model = SpreadModel(model_type="market", fixed_spread_pct=0.0)
+        result = model.calculate(price=100.0, quantity=10, bid=100.0, ask=100.0)
+        assert result == pytest.approx(0.0)

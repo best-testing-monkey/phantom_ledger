@@ -52,9 +52,9 @@ class CostEngine:
             quantity=quantity, price=price, monthly_volume=0
         )
         spread = self._profile.spread.calculate(
-            price=price, quantity=quantity, atr=atr, hour_utc=hour_utc
+            price=price, quantity=quantity, atr=atr, hour_utc=hour_utc, bid=None, ask=None
         )
-        slippage = self._profile.slippage.calculate(price=price, quantity=quantity)
+        slippage = self._profile.slippage.calculate(price=price, quantity=quantity, adv=None)
         fx = price * quantity * self._profile.fx_conversion_pct if fx_required else 0.0
         total = commission + spread + slippage + fx
         return CostBreakdown(
