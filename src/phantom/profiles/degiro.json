@@ -1,0 +1,60 @@
+{
+    "profile": {
+        "name": "DEGIRO",
+        "min_order_size": 1.0,
+        "max_leverage": 1.0,
+        "supported_instruments": ["stock", "etf"],
+        "fx_conversion_pct": 0.0025,
+        "fx_base_currency": "EUR"
+    },
+    "commission": {
+        "model_type": "fixed",
+        "fixed_fee": 1.00
+    },
+    "spread": {
+        "model_type": "dynamic",
+        "base_spread_pct": 0.0005,
+        "volatility_multiplier": 0.3,
+        "time_of_day_curve": {
+            "0": 3.0,
+            "9": 1.2,
+            "14": 0.8,
+            "16": 1.0,
+            "20": 2.0
+        }
+    },
+    "slippage": {
+        "model_type": "fixed_pct",
+        "fixed_pct": 0.0003
+    },
+    "overnight": {
+        "long_markup_pct": 0.0,
+        "short_markup_pct": 0.0,
+        "day_divisor": 365,
+        "rate_source": "manual",
+        "manual_rate": 0.0
+    },
+    "margin": {
+        "default_margin_pct": 1.0,
+        "margin_call_level": 1.0,
+        "stop_out_level": 0.5
+    },
+    "dividend": {
+        "cfd_dividend_adjustment": 1.0,
+        "cfd_short_dividend_charge": 1.0,
+        "withholding_rates": {
+            "US": 0.15,
+            "NL": 0.15,
+            "DE": 0.26375,
+            "UK": 0.0,
+            "HK": 0.0
+        }
+    },
+    "trading_hours": {
+        "timezone": "America/New_York",
+        "open": "09:30",
+        "close": "16:00",
+        "pre_market": false,
+        "post_market": false
+    }
+}

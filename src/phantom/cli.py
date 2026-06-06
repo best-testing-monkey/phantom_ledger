@@ -107,11 +107,55 @@ def data_fetch():
 
 @broker_app.command("list")
 def broker_list():
-    """List broker profiles."""
+    """List all loaded broker profiles."""
     try:
+        from rich.table import Table
+
         ph = get_phantom()
-        brokers = ph.brokers.list()
-        console.print(brokers)
+        profiles = ph.brokers.list()
+        if not profiles:
+            console.print("No broker profiles loaded. Use 'phantom broker load <file>' to add one.")
+            return
+        table = Table(title="Broker Profiles")
+        table.add_column("Name")
+        table.add_column("Supported Instruments")
+        table.add_column("Commission Type")
+        table.add_column("FX Cost")
+        for p in profiles:
+            table.add_row(
+                p.name,
+                ", ".join(p.supported_instruments),
+                p.commission.model_type,
+                f"{p.fx_conversion_pct:.2%}",
+            )
+        console.print(table)
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@broker_app.command("show")
+def broker_show(name: str = typer.Argument(..., help="Broker profile name")):
+    """Show details of a broker profile."""
+    try:
+        from rich.panel import Panel
+
+        ph = get_phantom()
+        p = ph.brokers.get(name)
+        details = (
+            f"Commission: {p.commission.model_type} "
+            f"(fee={p.commission.fixed_fee})\n"
+            f"Spread: {p.spread.model_type}\n"
+            f"Slippage: {p.slippage.model_type}\n"
+            f"Overnight rate source: {p.overnight.rate_source}\n"
+            f"Margin call level: {p.margin.margin_call_level}\n"
+            f"Stop-out level: {p.margin.stop_out_level}\n"
+            f"FX cost: {p.fx_conversion_pct:.2%}\n"
+            f"Base currency: {p.fx_base_currency}\n"
+            f"Max leverage: {p.max_leverage}x\n"
+            f"Instruments: {', '.join(p.supported_instruments)}"
+        )
+        console.print(Panel(details, title=f"Broker: {p.name}"))
     except PhantomError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1)

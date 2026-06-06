@@ -25,11 +25,11 @@ Check off each story as it is completed.
 ### E2 · Broker Profile System (core)
 > Needed by E3 (cost engine) and everything that touches broker profiles.
 
-- [ ] E2-S01 — [Define BrokerProfile Pydantic model with all sub-models](tickets/e02-s01.md)
-- [ ] E2-S02 — [Implement JSON loader](tickets/e02-s02.md)
-- [ ] E2-S03 — [Write DEGIRO broker profile JSON](tickets/e02-s03.md)
-- [ ] E2-S04 — [Implement broker_repo](tickets/e02-s04.md)
-- [ ] E2-S05 — [CLI: `phantom broker list` and `phantom broker show`](tickets/e02-s05.md)
+- [x] E2-S01 — [Define BrokerProfile Pydantic model with all sub-models](tickets/e02-s01.md)
+- [x] E2-S02 — [Implement JSON loader](tickets/e02-s02.md)
+- [x] E2-S03 — [Write DEGIRO broker profile JSON](tickets/e02-s03.md)
+- [x] E2-S04 — [Implement broker_repo](tickets/e02-s04.md)
+- [x] E2-S05 — [CLI: `phantom broker list` and `phantom broker show`](tickets/e02-s05.md)
 
 ### E3 · Cost Engine (MVP)
 > Depends on E2. Needed by E6 (order fills).
