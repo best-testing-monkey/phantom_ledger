@@ -1,8 +1,11 @@
+from datetime import datetime
 import sqlite3
 
 from phantom.errors import NotFoundError
 from phantom.models.position import Position
-from phantom.utils.datetime import parse_datetime
+from phantom.utils.datetime import parse_datetime, to_iso
+
+_UNSET = object()
 
 
 class PositionRepo:
@@ -68,7 +71,11 @@ class PositionRepo:
         return self._row_to_model(row)
 
     def list_by_account(
-        self, account_id: str, status: str | None = None, ticker: str | None = None
+        self,
+        account_id: str,
+        status: str | None = None,
+        ticker: str | None = None,
+        replay_completed_at=_UNSET,
     ) -> list[Position]:
         query = "SELECT * FROM positions WHERE account_id = ?"
         params = [account_id]
@@ -78,6 +85,8 @@ class PositionRepo:
         if ticker:
             query += " AND ticker = ?"
             params.append(ticker)
+        if replay_completed_at is None:
+            query += " AND replay_completed_at IS NULL"
         query += " ORDER BY entry_datetime"
         rows = self._conn.execute(query, params).fetchall()
         return [self._row_to_model(r) for r in rows]
@@ -124,6 +133,26 @@ class PositionRepo:
             raise NotFoundError("Position", position.id)
         self._conn.commit()
         return position
+
+    def mark_replay_complete(self, position_id: str, dt: str | datetime) -> None:
+        if not isinstance(dt, str):
+            dt = to_iso(dt)
+        cursor = self._conn.execute(
+            "UPDATE positions SET replay_completed_at = ? WHERE id = ?",
+            (dt, position_id),
+        )
+        if cursor.rowcount == 0:
+            raise NotFoundError("Position", position_id)
+        self._conn.commit()
+
+    def reset_replay(self, position_id: str) -> None:
+        cursor = self._conn.execute(
+            "UPDATE positions SET replay_completed_at = NULL WHERE id = ?",
+            (position_id,),
+        )
+        if cursor.rowcount == 0:
+            raise NotFoundError("Position", position_id)
+        self._conn.commit()
 
     def _row_to_model(self, row: sqlite3.Row) -> Position:
         d = dict(row)

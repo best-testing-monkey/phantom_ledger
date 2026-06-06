@@ -17,10 +17,17 @@ class PositionAPI:
         self._account_repo = AccountRepo(conn)
         self._broker_repo = broker_repo
 
-    def list(self, account_name: str | None = None, status: str | None = None) -> list[Position]:
+    def list(
+        self,
+        account_name: str | None = None,
+        status: str | None = None,
+        replay_completed_at=...,
+    ) -> list[Position]:
         if account_name:
             account = self._account_repo.get_by_name(account_name)
-            return self._position_repo.list_by_account(account.id, status=status)
+            return self._position_repo.list_by_account(
+                account.id, status=status, replay_completed_at=replay_completed_at
+            )
         return self._position_repo.list_open_all()
 
     def get(self, position_id: str) -> Position:
@@ -73,3 +80,6 @@ class PositionAPI:
             raise ValidationError("Provide at least take_profit or stop_loss")
         updated = position.model_copy(update=updates)
         return self._position_repo.update(updated)
+
+    def reset_replay(self, position_id: str) -> None:
+        self._position_repo.reset_replay(position_id)

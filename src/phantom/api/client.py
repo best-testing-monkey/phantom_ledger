@@ -30,3 +30,4 @@ class Phantom:
         self.brokers = BrokerAPI(self._conn)
         self.reports = ReportAPI(self._conn)
         self.runner = RunnerAPI(self._conn, broker_repo)
+        self.replay = self.runner

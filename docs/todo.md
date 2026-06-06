@@ -96,11 +96,11 @@ Check off each story as it is completed.
 ### E10 · Historical Position Replay (MVP)
 > Depends on E9.
 
-- [ ] E10-S01 — [ReplayEngine.replay_position(): load bars, run lifecycle](tickets/e10-s01.md)
-- [ ] E10-S02 — [Replay outcome handling (historical close vs. still open)](tickets/e10-s02.md)
-- [ ] E10-S03 — [CLI: `phantom replay --account <name>`](tickets/e10-s03.md)
-- [ ] E10-S04 — [CLI: `phantom replay --position <id>`](tickets/e10-s04.md)
-- [ ] E10-S05 — [Replay idempotency (replay_completed_at, prevent double-replay)](tickets/e10-s05.md)
+- [x] E10-S01 — [ReplayEngine.replay_position(): load bars, run lifecycle](tickets/e10-s01.md)
+- [x] E10-S02 — [Replay outcome handling (historical close vs. still open)](tickets/e10-s02.md)
+- [x] E10-S03 — [CLI: `phantom replay --account <name>`](tickets/e10-s03.md)
+- [x] E10-S04 — [CLI: `phantom replay --position <id>`](tickets/e10-s04.md)
+- [x] E10-S05 — [Replay idempotency (replay_completed_at, prevent double-replay)](tickets/e10-s05.md)
 
 ---
 

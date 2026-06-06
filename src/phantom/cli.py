@@ -491,12 +491,69 @@ def run_backtest():
         raise typer.Exit(code=1)
 
 
-@replay_app.command("account")
-def replay_account():
-    """Replay account history."""
+@replay_app.command("all")
+def replay_all(account: str = typer.Option(..., "--account")):
+    """Replay all un-replayed positions for an account."""
     try:
-        get_phantom()
-        console.print("Replay not yet implemented")
+        from rich.progress import Progress
+
+        ph = get_phantom()
+        positions = ph.positions.list(account_name=account, replay_completed_at=None)
+        if not positions:
+            console.print("No un-replayed positions found.")
+            return
+        closed_count = 0
+        with Progress() as progress:
+            task = progress.add_task("Replaying...", total=len(positions))
+            for pos in positions:
+                progress.update(task, description=f"[cyan]{pos.ticker}[/cyan]")
+                try:
+                    result = ph.replay.replay_position(pos)
+                    if result.status == "closed":
+                        closed_count += 1
+                except PhantomError as e:
+                    console.print(f"[yellow]Warning:[/yellow] {pos.id}: {e}")
+                progress.advance(task)
+        console.print(
+            f"Replayed {len(positions)} positions: "
+            f"{closed_count} closed, {len(positions) - closed_count} still open"
+        )
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@replay_app.command("single")
+def replay_single(
+    position_id: str = typer.Option(..., "--position"),
+    force: bool = typer.Option(False, "--force"),
+):
+    """Replay a single position by ID."""
+    try:
+        from rich.panel import Panel
+
+        ph = get_phantom()
+        pos = ph.positions.get(position_id)
+        if pos.replay_completed_at and not force:
+            console.print("[red]Error:[/red] Position already replayed. Use --force to re-run.")
+            raise typer.Exit(code=1)
+        if force:
+            ph.positions.reset_replay(position_id)
+            pos = ph.positions.get(position_id)
+        with console.status("Replaying..."):
+            result = ph.replay.replay_position(pos)
+        if result.status == "closed":
+            details = (
+                f"Ticker: {result.ticker}\nDirection: {result.direction}\n"
+                f"Entry: {result.entry_price:.4f}\nClose: {result.exit_price:.4f}\n"
+                f"Reason: {result.close_reason}\nP&L: {result.realized_pnl:.2f}"
+            )
+        else:
+            details = (
+                f"Ticker: {result.ticker}\nDirection: {result.direction}\n"
+                f"Entry: {result.entry_price:.4f}\nStatus: still open"
+            )
+        console.print(Panel(details, title="Replay Result"))
     except PhantomError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1)

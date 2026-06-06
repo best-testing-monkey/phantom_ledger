@@ -44,4 +44,5 @@ class Position(BaseModel):
     close_reason: CloseReason | None = None
 
     pattern_tag: str | None = None
+    replay_completed_at: str | None = None
     created_at: datetime = Field(default_factory=now_utc)

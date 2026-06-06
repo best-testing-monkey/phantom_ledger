@@ -4,8 +4,11 @@ import sqlite3
 from phantom.costs.engine import CostEngine
 from phantom.db.repositories.account_repo import AccountRepo
 from phantom.db.repositories.broker_repo import BrokerRepo
+from phantom.db.repositories.position_repo import PositionRepo
+from phantom.engine.replay_engine import ReplayEngine
 from phantom.engine.simulation_engine import SimulationEngine
 from phantom.models.backtest_result import BacktestResult
+from phantom.models.position import Position
 
 
 class RunnerAPI:
@@ -37,8 +40,14 @@ class RunnerAPI:
         )
         return engine.run_backtest(account_id=account_id, tickers=tickers, start=start, end=end)
 
-    def replay(self, account_id: str) -> None:
-        raise NotImplementedError
+    def replay_position(self, position: Position) -> Position:
+        account = self._account_repo.get(position.account_id)
+        profile = self._broker_repo.get(account.broker_profile_id)
+        cost_engine = CostEngine(profile)
+        from phantom.config import get_data_dir
+        from phantom.data.yahoo import HistoricalProvider
 
-    def replay_position(self, position_id: str) -> None:
-        raise NotImplementedError
+        data_provider = HistoricalProvider(get_data_dir())
+        position_repo = PositionRepo(self._conn)
+        engine = ReplayEngine(data_provider, cost_engine, position_repo)
+        return engine.replay_position(position)
