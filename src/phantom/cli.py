@@ -19,6 +19,7 @@ broker_app = typer.Typer(help="Manage broker profiles")
 run_app = typer.Typer(help="Run backtests and paper trading")
 replay_app = typer.Typer(help="Replay historical positions")
 service_app = typer.Typer(help="Manage systemd services")
+web_app = typer.Typer(help="Web UI server")
 
 app.add_typer(account_app, name="account")
 app.add_typer(order_app, name="order")
@@ -30,6 +31,7 @@ app.add_typer(broker_app, name="broker")
 app.add_typer(run_app, name="run")
 app.add_typer(replay_app, name="replay")
 app.add_typer(service_app, name="service")
+app.add_typer(web_app, name="web")
 
 console = Console()
 
@@ -1196,6 +1198,22 @@ def service_install(
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1)
     except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@web_app.command("serve")
+def web_serve(port: int = typer.Option(8080, "--port", help="Port to serve on")):
+    """Start the web UI server."""
+    try:
+        import uvicorn
+
+        from phantom.web.app import create_app
+
+        app_instance = create_app()
+        console.print(f"[green]Starting Phantom Ledger Web UI on http://0.0.0.0:{port}[/green]")
+        uvicorn.run(app_instance, host="0.0.0.0", port=port)
+    except PhantomError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1)
 

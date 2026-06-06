@@ -1,0 +1,16 @@
+{% for position in positions %}
+    <tr>
+        <td><a href="/positions/{{ position.id }}">{{ position.ticker }}</a></td>
+        <td>{{ position.direction }}</td>
+        <td>{{ "%.2f"|format(position.quantity) }}</td>
+        <td>{{ "%.4f"|format(position.entry_price) }}</td>
+        <td>{{ "%.2f"|format(position.notional) }}</td>
+        <td class="{% if position.unrealized_pnl >= 0 %}positive{% else %}negative{% endif %}">
+            {{ "%.2f"|format(position.unrealized_pnl) }}
+        </td>
+    </tr>
+{% else %}
+    <tr>
+        <td colspan="6">No open positions</td>
+    </tr>
+{% endfor %}

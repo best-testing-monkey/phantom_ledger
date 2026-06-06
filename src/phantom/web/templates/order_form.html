@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Place Order - Phantom Ledger{% endblock %}
+
+{% block content %}
+    <div class="header">
+        <h1>Place Order</h1>
+    </div>
+
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if accounts %}
+        <div class="card">
+            <form method="post" action="/orders/new">
+                <div class="form-group">
+                    <label for="account_id">Account</label>
+                    <select name="account_id" id="account_id" required>
+                        <option value="">-- Select Account --</option>
+                        {% for acct in accounts %}
+                            <option value="{{ acct.id }}">{{ acct.name }} ({{ acct.base_currency }} {{ "%.2f"|format(acct.cash) }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="symbol">Symbol</label>
+                    <input type="text" name="symbol" id="symbol" placeholder="e.g., AAPL" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Side</label>
+                    <div>
+                        <input type="radio" name="side" id="side_long" value="long" checked>
+                        <label for="side_long" style="display: inline; margin-right: 1rem;">Buy (Long)</label>
+
+                        <input type="radio" name="side" id="side_short" value="short">
+                        <label for="side_short" style="display: inline;">Sell (Short)</label>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="quantity">Quantity</label>
+                        <input type="number" name="quantity" id="quantity" step="0.01" min="0" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Order Type</label>
+                        <div>
+                            <input type="radio" name="order_type" id="type_market" value="market" checked>
+                            <label for="type_market" style="display: inline; margin-right: 1rem;">Market</label>
+
+                            <input type="radio" name="order_type" id="type_limit" value="limit">
+                            <label for="type_limit" style="display: inline;">Limit</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="limit_price">Limit Price (if limit order)</label>
+                    <input type="number" name="limit_price" id="limit_price" step="0.0001" min="0">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="stop_loss">Stop Loss (optional)</label>
+                        <input type="number" name="stop_loss" id="stop_loss" step="0.0001" min="0">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="take_profit">Take Profit (optional)</label>
+                        <input type="number" name="take_profit" id="take_profit" step="0.0001" min="0">
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 1rem;">
+                    <button type="submit">Place Order</button>
+                    <button type="reset" class="secondary">Clear</button>
+                </div>
+            </form>
+        </div>
+    {% else %}
+        <div class="card">
+            <h2>No Accounts Available</h2>
+            <p>You need to create an account first. Use the CLI:</p>
+            <pre><code>phantom account create --name "My Account" --type manual --broker "Broker Name" --capital 10000</code></pre>
+        </div>
+    {% endif %}
+{% endblock %}

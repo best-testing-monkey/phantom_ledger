@@ -1,0 +1,20 @@
+<div id="equity-panel" class="summary-grid">
+    <div class="summary-card">
+        <div class="label">Account</div>
+        <div class="value">{{ account.name }}</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Cash</div>
+        <div class="value">{{ "%.2f"|format(account.cash) }} {{ account.base_currency }}</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Equity</div>
+        <div class="value">{{ "%.2f"|format(account.initial_capital) }} {{ account.base_currency }}</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Unrealized P&L</div>
+        <div class="value {% if total_unrealized >= 0 %}positive{% else %}negative{% endif %}">
+            {{ "%.2f"|format(total_unrealized) }}
+        </div>
+    </div>
+</div>

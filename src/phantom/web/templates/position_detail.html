@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Position {{ position.id|default('') }} - Phantom Ledger{% endblock %}
+
+{% block content %}
+    <div class="header">
+        <h1>Position Detail</h1>
+    </div>
+
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% elif position %}
+        <div class="card">
+            <h2>{{ position.ticker }} - {{ position.direction|upper }}</h2>
+            <table>
+                <tr>
+                    <td><strong>Position ID:</strong></td>
+                    <td>{{ position.id }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Account:</strong></td>
+                    <td>{{ account.name }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Status:</strong></td>
+                    <td>{{ position.status }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Instrument Type:</strong></td>
+                    <td>{{ position.instrument_type }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Entry Price:</strong></td>
+                    <td>{{ "%.4f"|format(position.entry_price) }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Quantity:</strong></td>
+                    <td>{{ "%.2f"|format(position.quantity) }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Entry DateTime:</strong></td>
+                    <td>{{ position.entry_datetime.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                </tr>
+                {% if position.exit_price %}
+                    <tr>
+                        <td><strong>Exit Price:</strong></td>
+                        <td>{{ "%.4f"|format(position.exit_price) }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Exit DateTime:</strong></td>
+                        <td>{{ position.exit_datetime.strftime('%Y-%m-%d %H:%M:%S') if position.exit_datetime }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Duration:</strong></td>
+                        <td>{{ duration_days }} days</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Realized P&L:</strong></td>
+                        <td class="{% if position.realized_pnl is not none and position.realized_pnl >= 0 %}positive{% elif position.realized_pnl %}negative{% else %}neutral{% endif %}">
+                            {{ "%.2f"|format(position.realized_pnl or 0) }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Close Reason:</strong></td>
+                        <td>{{ position.close_reason }}</td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td><strong>Unrealized P&L:</strong></td>
+                        <td class="{% if position.unrealized_pnl >= 0 %}positive{% else %}negative{% endif %}">
+                            {{ "%.2f"|format(position.unrealized_pnl) }}
+                        </td>
+                    </tr>
+                {% endif %}
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Cost Breakdown</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cost Component</th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Entry Commission</td>
+                        <td>{{ "%.2f"|format(position.commission_entry) }}</td>
+                    </tr>
+                    <tr>
+                        <td>Exit Commission</td>
+                        <td>{{ "%.2f"|format(position.commission_exit) }}</td>
+                    </tr>
+                    <tr>
+                        <td>Spread Cost</td>
+                        <td>{{ "%.2f"|format(position.spread_cost) }}</td>
+                    </tr>
+                    <tr>
+                        <td>Slippage Cost</td>
+                        <td>{{ "%.2f"|format(position.slippage_cost) }}</td>
+                    </tr>
+                    <tr>
+                        <td>Overnight Costs</td>
+                        <td>{{ "%.2f"|format(position.overnight_costs) }}</td>
+                    </tr>
+                    <tr>
+                        <td>FX Conversion Cost</td>
+                        <td>{{ "%.2f"|format(position.fx_conversion_cost) }}</td>
+                    </tr>
+                    <tr>
+                        <td>Dividend Adjustments</td>
+                        <td>{{ "%.2f"|format(position.dividend_adjustments) }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Total Costs</strong></td>
+                        <td><strong>
+                            {{ "%.2f"|format(
+                                position.commission_entry + position.commission_exit + position.spread_cost +
+                                position.slippage_cost + position.overnight_costs + position.fx_conversion_cost +
+                                position.dividend_adjustments
+                            ) }}
+                        </strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        {% if notes %}
+            <div class="card">
+                <h2>Trade Notes</h2>
+                <div>
+                    {% for note in notes %}
+                        <div style="margin-bottom: 1rem; padding: 0.75rem; background-color: #f9f9f9; border-radius: 4px;">
+                            <strong>{{ note.created_at.strftime('%Y-%m-%d %H:%M') }}</strong>
+                            <p>{{ note.content }}</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    {% endif %}
+{% endblock %}

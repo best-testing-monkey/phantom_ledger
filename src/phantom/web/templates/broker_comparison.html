@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Broker Comparison - Phantom Ledger{% endblock %}
+
+{% block content %}
+    <div class="header">
+        <h1>Broker Comparison</h1>
+    </div>
+
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if account and comparison %}
+        <div class="card">
+            <h2>Cost Comparison for {{ account.name }}</h2>
+            <p>This shows the total costs you would have incurred trading with this account on different brokers.</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Broker</th>
+                        <th>Commission</th>
+                        <th>Spread</th>
+                        <th>Slippage</th>
+                        <th>Overnight</th>
+                        <th>FX Conversion</th>
+                        <th>Dividends</th>
+                        <th>Total Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for broker_name, summary in comparison.items() %}
+                        <tr {% if broker_name == cheapest_broker %}class="best"{% endif %}>
+                            <td><strong>{{ broker_name }}</strong></td>
+                            <td>{{ "%.2f"|format(summary.total_commission) }}</td>
+                            <td>{{ "%.2f"|format(summary.total_spread) }}</td>
+                            <td>{{ "%.2f"|format(summary.total_slippage) }}</td>
+                            <td>{{ "%.2f"|format(summary.total_overnight) }}</td>
+                            <td>{{ "%.2f"|format(summary.total_fx) }}</td>
+                            <td>{{ "%.2f"|format(summary.total_dividends) }}</td>
+                            <td><strong>{{ "%.2f"|format(summary.total_cost) }}</strong></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            {% if cheapest_broker %}
+                <p style="margin-top: 1rem; color: #27ae60;">
+                    <strong>Best Option:</strong> {{ cheapest_broker }} would have saved you the most on costs.
+                </p>
+            {% endif %}
+        </div>
+    {% elif account %}
+        <div class="card">
+            <h2>No Comparison Data</h2>
+            <p>Could not generate broker comparison. Please check that your account has closed positions and broker profiles are available.</p>
+        </div>
+    {% endif %}
+{% endblock %}

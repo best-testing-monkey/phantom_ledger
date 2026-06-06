@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Phantom Ledger{% endblock %}
+
+{% block content %}
+    <div class="header">
+        <h1>Dashboard</h1>
+    </div>
+
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if no_accounts %}
+        <div class="card">
+            <h2>No Accounts Found</h2>
+            <p>You don't have any accounts yet. Create one using the CLI:</p>
+            <pre><code>phantom account create --name "My Account" --type manual --broker "Broker Name" --capital 10000</code></pre>
+        </div>
+    {% elif account %}
+        <div id="equity-panel" hx-get="/api/equity-snapshot?account={{ account.name }}" hx-trigger="every 30s" hx-target="#equity-panel" hx-swap="outerHTML">
+            {% include "_equity_panel.html" %}
+        </div>
+
+        {% if positions %}
+            <div class="card">
+                <h2>Open Positions</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Side</th>
+                            <th>Quantity</th>
+                            <th>Entry Price</th>
+                            <th>Current Value</th>
+                            <th>Unrealized P&L</th>
+                        </tr>
+                    </thead>
+                    <tbody id="positions-tbody" hx-get="/api/positions-rows?account={{ account.name }}" hx-trigger="every 30s" hx-target="#positions-tbody" hx-swap="innerHTML">
+                        {% include "_positions_rows.html" %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+
+        {% if recent_trades %}
+            <div class="card">
+                <h2>Recent Closed Trades (Last 10)</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Side</th>
+                            <th>Quantity</th>
+                            <th>Entry Price</th>
+                            <th>Exit Price</th>
+                            <th>Realized P&L</th>
+                            <th>Close Reason</th>
+                            <th>Close Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for trade in recent_trades %}
+                            <tr>
+                                <td><a href="/positions/{{ trade.id }}">{{ trade.ticker }}</a></td>
+                                <td>{{ trade.direction }}</td>
+                                <td>{{ "%.2f"|format(trade.quantity) }}</td>
+                                <td>{{ "%.4f"|format(trade.entry_price) }}</td>
+                                <td>{{ "%.4f"|format(trade.exit_price or 0) }}</td>
+                                <td class="{% if trade.realized_pnl is not none and trade.realized_pnl >= 0 %}positive{% elif trade.realized_pnl %}negative{% else %}neutral{% endif %}">
+                                    {{ "%.2f"|format(trade.realized_pnl or 0) }}
+                                </td>
+                                <td>{{ trade.close_reason or "manual" }}</td>
+                                <td>{{ trade.exit_datetime.strftime('%Y-%m-%d %H:%M') if trade.exit_datetime }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="card">
+                <p>No closed trades yet.</p>
+            </div>
+        {% endif %}
+    {% endif %}
+{% endblock %}
