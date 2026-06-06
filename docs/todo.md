@@ -229,18 +229,18 @@ Check off each story as it is completed.
 
 ### E11 · Trade Notes (remaining)
 
-- [ ] E11-S07 — [Note edit via $EDITOR](tickets/e11-s07.md)
-- [ ] E11-S08 — [Note search (grep across account notes)](tickets/e11-s08.md)
+- [x] E11-S07 — [Note edit via $EDITOR](tickets/e11-s07.md)
+- [x] E11-S08 — [Note search (grep across account notes)](tickets/e11-s08.md)
 
 ### E12 · Reporting (remaining)
 
-- [ ] E12-S05 — [Sharpe ratio and Sortino ratio](tickets/e12-s05.md)
-- [ ] E12-S06 — [Per-pattern-tag filtering](tickets/e12-s06.md)
-- [ ] E12-S07 — [Per-algorithm-version filtering](tickets/e12-s07.md)
-- [ ] E12-S08 — [Aggregate account reporting (combined equity curves)](tickets/e12-s08.md)
-- [ ] E12-S09 — [Cost comparison across broker profiles](tickets/e12-s09.md)
-- [ ] E12-S10 — [CLI: `phantom report --compare-brokers`](tickets/e12-s10.md)
-- [ ] E12-S11 — [Export equity curve to CSV](tickets/e12-s11.md)
+- [x] E12-S05 — [Sharpe ratio and Sortino ratio](tickets/e12-s05.md)
+- [x] E12-S06 — [Per-pattern-tag filtering](tickets/e12-s06.md)
+- [x] E12-S07 — [Per-algorithm-version filtering](tickets/e12-s07.md)
+- [x] E12-S08 — [Aggregate account reporting (combined equity curves)](tickets/e12-s08.md)
+- [x] E12-S09 — [Cost comparison across broker profiles](tickets/e12-s09.md)
+- [x] E12-S10 — [CLI: `phantom report --compare-brokers`](tickets/e12-s10.md)
+- [x] E12-S11 — [Export equity curve to CSV](tickets/e12-s11.md)
 
 ### E13 · Paper Trade Scheduler
 > Depends on E9-S06 (run_paper loop).
@@ -253,8 +253,8 @@ Check off each story as it is completed.
 ### E17 · Library API Surface (remaining)
 
 - [ ] E17-S13 — [RunnerAPI: paper_trade() + stop() (background thread)](tickets/e17-s13.md)
-- [ ] E17-S14 — [ReportAPI: compare_brokers()](tickets/e17-s14.md)
-- [ ] E17-S15 — [NoteAPI: edit(), search()](tickets/e17-s15.md)
+- [x] E17-S14 — [ReportAPI: compare_brokers()](tickets/e17-s14.md)
+- [x] E17-S15 — [NoteAPI: edit(), search()](tickets/e17-s15.md)
 - [ ] E17-S16 — [Thread safety: write lock on mutating ops](tickets/e17-s16.md)
 - [ ] E17-S17 — [Library usage documentation](tickets/e17-s17.md)
 - [ ] E17-S18 — [CostEngine as standalone public export](tickets/e17-s18.md)
