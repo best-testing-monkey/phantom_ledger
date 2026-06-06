@@ -10,6 +10,7 @@ from phantom.api.reports import ReportAPI
 from phantom.api.runner import RunnerAPI
 from phantom.config import ensure_dirs
 from phantom.db.database import get_connection, run_migrations
+from phantom.db.repositories.broker_repo import BrokerRepo
 
 
 class Phantom:
@@ -19,8 +20,10 @@ class Phantom:
         self._conn = get_connection(db_path)
         run_migrations(self._conn)
 
+        broker_repo = BrokerRepo(self._conn)
+
         self.accounts = AccountAPI(self._conn)
-        self.orders = OrderAPI(self._conn)
+        self.orders = OrderAPI(self._conn, broker_repo)
         self.positions = PositionAPI(self._conn)
         self.notes = NoteAPI(self._conn)
         self.data = DataAPI(self._conn, data_dir=data_dir)

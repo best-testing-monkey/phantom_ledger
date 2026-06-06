@@ -137,25 +137,146 @@ def account_show(name: str = typer.Argument(..., help="Account name")):
         raise typer.Exit(code=1)
 
 
+@order_app.command("place")
+def order_place(
+    account: str = typer.Option(..., "--account"),
+    ticker: str = typer.Option(..., "--ticker"),
+    direction: str = typer.Option(..., "--direction", help="long or short"),
+    order_type: str = typer.Option(..., "--type", help="market/limit/stop/stop_limit"),
+    quantity: float = typer.Option(..., "--quantity"),
+    instrument: str = typer.Option("stock", "--instrument"),
+    limit_price: float = typer.Option(None, "--limit-price"),
+    stop_price: float = typer.Option(None, "--stop-price"),
+    trailing_amount: float = typer.Option(None, "--trailing-amount"),
+    trailing_pct: float = typer.Option(None, "--trailing-pct"),
+    tp: float = typer.Option(None, "--tp"),
+    sl: float = typer.Option(None, "--sl"),
+    at: str = typer.Option(None, "--at", help="Historical created_at datetime"),
+    good_til: str = typer.Option(None, "--good-til"),
+):
+    """Place an order."""
+    try:
+        from rich.panel import Panel
+
+        from phantom.models.order import Order
+        from phantom.utils.datetime import parse_datetime
+
+        ph = get_phantom()
+        acct = ph.accounts.get(account)
+        order_kwargs = dict(
+            account_id=acct.id,
+            ticker=ticker,
+            instrument_type=instrument,
+            direction=direction,
+            order_type=order_type,
+            quantity=quantity,
+            limit_price=limit_price,
+            stop_price=stop_price,
+            trailing_amount=trailing_amount,
+            trailing_pct=trailing_pct,
+            take_profit=tp,
+            stop_loss=sl,
+        )
+        if at:
+            order_kwargs["created_at"] = parse_datetime(at)
+        if good_til:
+            order_kwargs["good_til"] = parse_datetime(good_til)
+        order = ph.orders.place(account_id=acct.id, order=Order(**order_kwargs))
+        console.print(
+            Panel(
+                f"ID: {order.id}\nTicker: {order.ticker}\nDirection: {order.direction}\n"
+                f"Type: {order.order_type}\nQuantity: {order.quantity}\nStatus: {order.status}",
+                title="Order Placed",
+            )
+        )
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
 @order_app.command("list")
-def order_list():
-    """List all orders."""
+def order_list(
+    account: str = typer.Option(..., "--account"),
+    status: str = typer.Option(None, "--status"),
+):
+    """List orders for an account."""
+    try:
+        from rich.table import Table
+
+        ph = get_phantom()
+        orders = ph.orders.list(account_name=account, status=status)
+        if not orders:
+            console.print("No orders found.")
+            return
+        table = Table(title=f"Orders — {account}")
+        table.add_column("ID")
+        table.add_column("Ticker")
+        table.add_column("Direction")
+        table.add_column("Type")
+        table.add_column("Quantity")
+        table.add_column("Status")
+        table.add_column("Created At")
+        for o in orders:
+            table.add_row(
+                o.id[:8] + "...",
+                o.ticker,
+                o.direction,
+                o.order_type,
+                str(o.quantity),
+                o.status,
+                str(o.created_at)[:19],
+            )
+        console.print(table)
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@order_app.command("cancel")
+def order_cancel(order_id: str = typer.Argument(...)):
+    """Cancel a pending order."""
     try:
         ph = get_phantom()
-        orders = ph.orders.list()
-        console.print(orders)
+        ph.orders.cancel(order_id)
+        console.print(f"Order {order_id} cancelled.")
     except PhantomError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1)
 
 
 @position_app.command("list")
-def position_list():
-    """List all positions."""
+def position_list(
+    account: str = typer.Option(..., "--account"),
+    status: str = typer.Option(None, "--status"),
+):
+    """List positions for an account."""
     try:
+        from rich.table import Table
+
         ph = get_phantom()
-        positions = ph.positions.list()
-        console.print(positions)
+        positions = ph.positions.list(account_name=account, status=status)
+        if not positions:
+            console.print("No positions found.")
+            return
+        table = Table(title=f"Positions — {account}")
+        table.add_column("ID")
+        table.add_column("Ticker")
+        table.add_column("Direction")
+        table.add_column("Entry Price")
+        table.add_column("Quantity")
+        table.add_column("Status")
+        table.add_column("Entry At")
+        for p in positions:
+            table.add_row(
+                p.id[:8] + "...",
+                p.ticker,
+                p.direction,
+                f"{p.entry_price:.2f}",
+                str(p.quantity),
+                p.status,
+                str(p.entry_datetime)[:19],
+            )
+        console.print(table)
     except PhantomError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1)

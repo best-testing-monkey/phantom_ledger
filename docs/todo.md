@@ -63,19 +63,19 @@ Check off each story as it is completed.
 ### E6 · Order System
 > Depends on E5 (accounts) and E3 (costs on fill).
 
-- [ ] E6-S01 — [Order model with all fields](tickets/e06-s01.md)
-- [ ] E6-S02 — [order_repo](tickets/e06-s02.md)
-- [ ] E6-S03 — [OrderManager.place(): validate + persist as "pending"](tickets/e06-s03.md)
-- [ ] E6-S04 — [OrderManager.evaluate(): trigger/fill on each bar](tickets/e06-s04.md)
-- [ ] E6-S05 — [On fill: compute entry costs, deduct cash, create Position, link order](tickets/e06-s05.md)
-- [ ] E6-S06 — [Order expiry (good_til)](tickets/e06-s06.md)
-- [ ] E6-S07 — [CLI: `phantom order place`](tickets/e06-s07.md)
-- [ ] E6-S08 — [CLI: `phantom order list` / `phantom order cancel`](tickets/e06-s08.md)
+- [x] E6-S01 — [Order model with all fields](tickets/e06-s01.md)
+- [x] E6-S02 — [order_repo](tickets/e06-s02.md)
+- [x] E6-S03 — [OrderManager.place(): validate + persist as "pending"](tickets/e06-s03.md)
+- [x] E6-S04 — [OrderManager.evaluate(): trigger/fill on each bar](tickets/e06-s04.md)
+- [x] E6-S05 — [On fill: compute entry costs, deduct cash, create Position, link order](tickets/e06-s05.md)
+- [x] E6-S06 — [Order expiry (good_til)](tickets/e06-s06.md)
+- [x] E6-S07 — [CLI: `phantom order place`](tickets/e06-s07.md)
+- [x] E6-S08 — [CLI: `phantom order list` / `phantom order cancel`](tickets/e06-s08.md)
 
 ### E7 · Position System
 > Depends on E6.
 
-- [ ] E7-S01 — [Position model with all fields](tickets/e07-s01.md)
+- [x] E7-S01 — [Position model with all fields](tickets/e07-s01.md)
 - [ ] E7-S02 — [position_repo](tickets/e07-s02.md)
 - [ ] E7-S03 — [PositionManager.update(): unrealized P&L, TP/SL check](tickets/e07-s03.md)
 - [ ] E7-S04 — [TP/SL exit logic (trigger price, exit costs, close_reason)](tickets/e07-s04.md)
