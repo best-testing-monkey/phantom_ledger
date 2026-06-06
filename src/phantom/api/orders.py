@@ -18,7 +18,7 @@ class OrderAPI:
 
     def _get_manager(self, account_id: str) -> OrderManager:
         account = self._account_repo.get(account_id)
-        profile = self._broker_repo.get_by_name(account.broker_profile_id)
+        profile = self._broker_repo.get(account.broker_profile_id)
         cost_engine = CostEngine(profile)
         return OrderManager(self._order_repo, self._account_repo, cost_engine)
 

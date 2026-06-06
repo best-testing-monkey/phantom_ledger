@@ -25,6 +25,22 @@ class BrokerRepo:
         self._conn.commit()
         return profile
 
+    def get_id_by_name(self, name: str) -> str:
+        row = self._conn.execute(
+            "SELECT id FROM broker_profiles WHERE name = ?", (name,)
+        ).fetchone()
+        if row is None:
+            raise NotFoundError("BrokerProfile", name)
+        return row["id"]
+
+    def get(self, profile_id: str) -> BrokerProfile:
+        row = self._conn.execute(
+            "SELECT config_json FROM broker_profiles WHERE id = ?", (profile_id,)
+        ).fetchone()
+        if row is None:
+            raise NotFoundError("BrokerProfile", profile_id)
+        return BrokerProfile.model_validate_json(row["config_json"])
+
     def get_by_name(self, name: str) -> BrokerProfile:
         row = self._conn.execute(
             "SELECT config_json FROM broker_profiles WHERE name = ?", (name,)

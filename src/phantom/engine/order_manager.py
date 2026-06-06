@@ -124,7 +124,13 @@ class OrderManager:
         )
         account = account.model_copy(update={"cash": account.cash - total_deduction})
         position_repo.create(position)
-        self._order_repo.update_status(order.id, "filled", position_id=position.id)
+        self._order_repo.update_status(
+            order.id,
+            "filled",
+            position_id=position.id,
+            fill_price=order.fill_price,
+            filled_at=order.filled_at,
+        )
         self._account_repo.update(account)
         logger.info("Order %s filled at %.2f", order.id, order.fill_price)
         return self._order_repo.get(order.id), position

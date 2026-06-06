@@ -34,7 +34,7 @@ class PositionAPI:
             raise ValidationError(f"Position {position_id} is already {position.status}")
 
         account = self._account_repo.get(position.account_id)
-        profile = self._broker_repo.get_by_name(account.broker_profile_id)
+        profile = self._broker_repo.get(account.broker_profile_id)
         cost_engine = CostEngine(profile)
         manager = PositionManager(self._position_repo, self._account_repo, cost_engine)
 

@@ -26,7 +26,8 @@ class AccountAPI:
         algorithm_params: dict | None = None,
         child_account_ids: list[str] | None = None,
     ) -> Account:
-        profile = self._broker_repo.get_by_name(broker)
+        self._broker_repo.get_by_name(broker)
+        broker_id = self._broker_repo.get_id_by_name(broker)
         if account_type == "pattern" and not pattern_tag:
             raise ValidationError("pattern_tag is required for pattern accounts")
         if account_type == "algorithm" and not algorithm_id:
@@ -34,7 +35,7 @@ class AccountAPI:
         account = Account(
             name=name,
             account_type=account_type,
-            broker_profile_id=profile.name,
+            broker_profile_id=broker_id,
             base_currency=currency,
             initial_capital=capital,
             cash=capital,

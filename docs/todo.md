@@ -88,10 +88,10 @@ Check off each story as it is completed.
 ### E9 · Simulation Engine (MVP)
 > Depends on E7 (position updates) and E4 (price data).
 
-- [ ] E9-S01 — [BacktestClock: step through DatetimeIndex](tickets/e09-s01.md)
-- [ ] E9-S02 — [SimulationEngine.run_backtest(): bar loop → evaluate orders → update positions](tickets/e09-s02.md)
-- [ ] E9-S03 — [Equity curve recording per bar](tickets/e09-s03.md)
-- [ ] E9-S04 — [Integration test: market order with TP/SL, full backtest run, verify outcome](tickets/e09-s04.md)
+- [x] E9-S01 — [BacktestClock: step through DatetimeIndex](tickets/e09-s01.md)
+- [x] E9-S02 — [SimulationEngine.run_backtest(): bar loop → evaluate orders → update positions](tickets/e09-s02.md)
+- [x] E9-S03 — [Equity curve recording per bar](tickets/e09-s03.md)
+- [x] E9-S04 — [Integration test: market order with TP/SL, full backtest run, verify outcome](tickets/e09-s04.md)
 
 ### E10 · Historical Position Replay (MVP)
 > Depends on E9.

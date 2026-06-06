@@ -29,4 +29,4 @@ class Phantom:
         self.data = DataAPI(self._conn, data_dir=data_dir)
         self.brokers = BrokerAPI(self._conn)
         self.reports = ReportAPI(self._conn)
-        self.runner = RunnerAPI(self._conn)
+        self.runner = RunnerAPI(self._conn, broker_repo)
