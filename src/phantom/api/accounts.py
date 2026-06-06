@@ -2,7 +2,7 @@ import sqlite3
 
 from phantom.db.repositories.account_repo import AccountRepo
 from phantom.db.repositories.broker_repo import BrokerRepo
-from phantom.errors import ValidationError
+from phantom.errors import NotFoundError, ValidationError
 from phantom.models.account import Account
 from phantom.models.types import AccountType
 
@@ -50,8 +50,11 @@ class AccountAPI:
     def list(self, account_type: str | None = None) -> list[Account]:
         return self._repo.list(account_type=account_type)
 
-    def get(self, name: str) -> Account:
-        return self._repo.get_by_name(name)
+    def get(self, id_or_name: str) -> Account:
+        try:
+            return self._repo.get(id_or_name)
+        except NotFoundError:
+            return self._repo.get_by_name(id_or_name)
 
     def delete(self, account_id: str) -> None:
         self._repo.delete(account_id)

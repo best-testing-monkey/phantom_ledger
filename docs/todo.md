@@ -129,18 +129,18 @@ Check off each story as it is completed.
 ### E17 · Library API Surface + CLI Wiring (MVP)
 > Final MVP integration step. Each sub-API (S03–S10) is built as its underlying epic completes; S11–S12 are the final wire-up.
 
-- [ ] E17-S01 — [PhantomError exception hierarchy](tickets/e17-s01.md)
-- [ ] E17-S02 — [Phantom facade class (data_dir, in_memory, sub-API attributes)](tickets/e17-s02.md)
-- [ ] E17-S03 — [AccountAPI: create(), list(), get(), delete()](tickets/e17-s03.md)
-- [ ] E17-S04 — [BrokerAPI: load(), list(), get(), validate()](tickets/e17-s04.md)
-- [ ] E17-S05 — [OrderAPI: place(), list(), cancel()](tickets/e17-s05.md)
-- [ ] E17-S06 — [PositionAPI: list(), get(), close(), modify()](tickets/e17-s06.md)
-- [ ] E17-S07 — [NoteAPI: add(), add_from_file(), list(), get()](tickets/e17-s07.md)
-- [ ] E17-S08 — [RunnerAPI: replay(), replay_position(), backtest()](tickets/e17-s08.md)
-- [ ] E17-S09 — [DataAPI: fetch_prices(), fetch_rates()](tickets/e17-s09.md)
-- [ ] E17-S10 — [ReportAPI: account_metrics(), cost_breakdown()](tickets/e17-s10.md)
-- [ ] E17-S11 — [`phantom/__init__.py` public re-exports](tickets/e17-s11.md)
-- [ ] E17-S12 — [CLI refactor: strip all logic, every command is a thin wrapper](tickets/e17-s12.md)
+- [x] E17-S01 — [PhantomError exception hierarchy](tickets/e17-s01.md)
+- [x] E17-S02 — [Phantom facade class (data_dir, in_memory, sub-API attributes)](tickets/e17-s02.md)
+- [x] E17-S03 — [AccountAPI: create(), list(), get(), delete()](tickets/e17-s03.md)
+- [x] E17-S04 — [BrokerAPI: load(), list(), get(), validate()](tickets/e17-s04.md)
+- [x] E17-S05 — [OrderAPI: place(), list(), cancel()](tickets/e17-s05.md)
+- [x] E17-S06 — [PositionAPI: list(), get(), close(), modify()](tickets/e17-s06.md)
+- [x] E17-S07 — [NoteAPI: add(), add_from_file(), list(), get()](tickets/e17-s07.md)
+- [x] E17-S08 — [RunnerAPI: replay(), replay_position(), backtest()](tickets/e17-s08.md)
+- [x] E17-S09 — [DataAPI: fetch_prices(), fetch_rates()](tickets/e17-s09.md)
+- [x] E17-S10 — [ReportAPI: account_metrics(), cost_breakdown()](tickets/e17-s10.md)
+- [x] E17-S11 — [`phantom/__init__.py` public re-exports](tickets/e17-s11.md)
+- [x] E17-S12 — [CLI refactor: strip all logic, every command is a thin wrapper](tickets/e17-s12.md)
 
 ---
 

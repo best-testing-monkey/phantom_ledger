@@ -1,35 +1,42 @@
 class PhantomError(Exception):
-    """Base exception for all Phantom Ledger errors."""
+    """Base class — never raise directly."""
 
 
 class NotFoundError(PhantomError):
-    def __init__(self, entity_type: str, identifier: str):
-        self.entity_type = entity_type
+    def __init__(self, entity: str, identifier: str) -> None:
+        self.entity = entity
         self.identifier = identifier
-        super().__init__(f"{entity_type} not found: {identifier}")
+        super().__init__(f"{entity} not found: {identifier}")
 
 
 class InsufficientFundsError(PhantomError):
-    def __init__(self, account_id: str, required: float, available: float):
+    def __init__(self, account_id: str, required: float, available: float) -> None:
         self.account_id = account_id
         self.required = required
         self.available = available
         super().__init__(
-            f"Insufficient funds in {account_id}: need {required:.2f}, have {available:.2f}"
+            f"Insufficient funds in account '{account_id}': "
+            f"required {required:.2f}, available {available:.2f}"
         )
 
 
 class MarginError(PhantomError):
-    pass
+    def __init__(self, account_id: str, margin_level: float) -> None:
+        self.account_id = account_id
+        self.margin_level = margin_level
+        super().__init__(f"Margin level {margin_level:.1%} in account '{account_id}'")
 
 
 class ValidationError(PhantomError):
-    pass
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
 
 
 class DataError(PhantomError):
-    pass
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
 
 
 class ProfileError(PhantomError):
-    pass
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
