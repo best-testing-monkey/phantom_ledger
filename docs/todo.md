@@ -252,12 +252,12 @@ Check off each story as it is completed.
 
 ### E17 · Library API Surface (remaining)
 
-- [ ] E17-S13 — [RunnerAPI: paper_trade() + stop() (background thread)](tickets/e17-s13.md)
+- [x] E17-S13 — [RunnerAPI: paper_trade() + stop() (background thread)](tickets/e17-s13.md)
 - [x] E17-S14 — [ReportAPI: compare_brokers()](tickets/e17-s14.md)
 - [x] E17-S15 — [NoteAPI: edit(), search()](tickets/e17-s15.md)
-- [ ] E17-S16 — [Thread safety: write lock on mutating ops](tickets/e17-s16.md)
-- [ ] E17-S17 — [Library usage documentation](tickets/e17-s17.md)
-- [ ] E17-S18 — [CostEngine as standalone public export](tickets/e17-s18.md)
+- [x] E17-S16 — [Thread safety: write lock on mutating ops](tickets/e17-s16.md)
+- [x] E17-S17 — [Library usage documentation](tickets/e17-s17.md)
+- [x] E17-S18 — [CostEngine as standalone public export](tickets/e17-s18.md)
 
 ---
 
@@ -265,27 +265,27 @@ Check off each story as it is completed.
 
 ### E12 · Reporting (P3)
 
-- [ ] E12-S12 — [Terminal equity curve chart (Rich or plotext)](tickets/e12-s12.md)
+- [x] E12-S12 — [Terminal equity curve chart (Rich or plotext)](tickets/e12-s12.md)
 
 ### E13 · Paper Trade Scheduler (P3)
 
-- [ ] E13-S05 — [systemd service template](tickets/e13-s05.md)
+- [x] E13-S05 — [systemd service template](tickets/e13-s05.md)
 
 ### E14 · Alerts & Notifications
 
-- [ ] E14-S01 — [Define alert event types](tickets/e14-s01.md)
-- [ ] E14-S02 — [Alert dispatcher](tickets/e14-s02.md)
-- [ ] E14-S03 — [Telegram webhook sender](tickets/e14-s03.md)
-- [ ] E14-S04 — [Discord webhook sender](tickets/e14-s04.md)
-- [ ] E14-S05 — [CLI config: `phantom config alerts`](tickets/e14-s05.md)
+- [x] E14-S01 — [Define alert event types](tickets/e14-s01.md) _(skipped per user request)_
+- [x] E14-S02 — [Alert dispatcher](tickets/e14-s02.md) _(skipped per user request)_
+- [x] E14-S03 — [Telegram webhook sender](tickets/e14-s03.md) _(skipped per user request)_
+- [x] E14-S04 — [Discord webhook sender](tickets/e14-s04.md) _(skipped per user request)_
+- [x] E14-S05 — [CLI config: `phantom config alerts`](tickets/e14-s05.md) _(skipped per user request)_
 
 ### E15 · Strategy Automation Hooks
 
-- [ ] E15-S01 — [Strategy protocol: on_bar() → list[OrderRequest]](tickets/e15-s01.md)
-- [ ] E15-S02 — [Strategy loader (import from user directory)](tickets/e15-s02.md)
-- [ ] E15-S03 — [Wire strategy into simulation loop](tickets/e15-s03.md)
-- [ ] E15-S04 — [Strategy parameter snapshot on account creation](tickets/e15-s04.md)
-- [ ] E15-S05 — [CLI: `phantom run --mode backtest --strategy my_strategy.py`](tickets/e15-s05.md)
+- [x] E15-S01 — [Strategy protocol: on_bar() → list[OrderRequest]](tickets/e15-s01.md) _(skipped per user request)_
+- [x] E15-S02 — [Strategy loader (import from user directory)](tickets/e15-s02.md) _(skipped per user request)_
+- [x] E15-S03 — [Wire strategy into simulation loop](tickets/e15-s03.md) _(skipped per user request)_
+- [x] E15-S04 — [Strategy parameter snapshot on account creation](tickets/e15-s04.md) _(skipped per user request)_
+- [x] E15-S05 — [CLI: `phantom run --mode backtest --strategy my_strategy.py`](tickets/e15-s05.md) _(skipped per user request)_
 
 ### E16 · Web UI
 

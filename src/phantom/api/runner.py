@@ -1,5 +1,9 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
 from datetime import datetime
 import sqlite3
+import threading
 from threading import Event
 
 from phantom.costs.engine import CostEngine
@@ -7,9 +11,29 @@ from phantom.db.repositories.account_repo import AccountRepo
 from phantom.db.repositories.broker_repo import BrokerRepo
 from phantom.db.repositories.position_repo import PositionRepo
 from phantom.engine.replay_engine import ReplayEngine
+from phantom.engine.scheduler import PaperTradeScheduler
 from phantom.engine.simulation_engine import SimulationEngine
 from phantom.models.backtest_result import BacktestResult
 from phantom.models.position import Position
+
+
+@dataclass
+class PaperTradeHandle:
+    """Handle for a background paper trading session."""
+
+    _scheduler: object
+    _thread: threading.Thread
+
+    def stop(self) -> None:
+        """Stop the paper trading session gracefully (idempotent)."""
+        if self._scheduler and hasattr(self._scheduler, "stop"):
+            self._scheduler.stop()
+        if self._thread.is_alive():
+            self._thread.join(timeout=5.0)
+
+    def is_running(self) -> bool:
+        """Check if the paper trading session is still running."""
+        return self._thread.is_alive()
 
 
 class RunnerAPI:
@@ -61,7 +85,7 @@ class RunnerAPI:
         stop_event: Event | None = None,
         data_provider=None,
     ) -> None:
-        """Run paper trading loop.
+        """Run paper trading loop (blocking).
 
         Args:
             account_id: Account ID to trade
@@ -92,3 +116,56 @@ class RunnerAPI:
             interval=interval,
             stop_event=stop_event,
         )
+
+    def paper_trade_background(
+        self,
+        account_id: str,
+        tickers: list[str],
+        interval: float = 300.0,
+        data_provider=None,
+    ) -> PaperTradeHandle:
+        """Start paper trading in a background thread.
+
+        Args:
+            account_id: Account ID to trade
+            tickers: List of tickers to fetch bars for
+            interval: Interval in seconds between ticks (default: 300)
+            data_provider: Optional data provider (defaults to LiveProvider)
+
+        Returns:
+            PaperTradeHandle to control the background session
+        """
+        account = self._account_repo.get(account_id)
+        profile = self._broker_repo.get(account.broker_profile_id)
+        cost_engine = CostEngine(profile)
+
+        if data_provider is None:
+            from phantom.config import get_data_dir
+            from phantom.data.alpaca import LiveProvider
+
+            data_provider = LiveProvider(get_data_dir())
+
+        engine = SimulationEngine(
+            conn=self._conn,
+            data_provider=data_provider,
+            cost_engine=cost_engine,
+        )
+
+        scheduler = PaperTradeScheduler(
+            engine=engine,
+            interval_seconds=int(interval),
+            conn=self._conn,
+            profile=profile,
+        )
+
+        def run_scheduler():
+            scheduler.start()
+
+        thread = threading.Thread(
+            target=run_scheduler,
+            daemon=True,
+            name=f"phantom-paper-{account_id[:8]}",
+        )
+        thread.start()
+
+        return PaperTradeHandle(_scheduler=scheduler, _thread=thread)

@@ -1,0 +1,11 @@
+[Unit]
+Description=Phantom Ledger paper trade — {{ account }}
+After=network.target
+
+[Service]
+ExecStart={{ phantom_bin }} run --account {{ account }} --mode paper --interval {{ interval }}
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target

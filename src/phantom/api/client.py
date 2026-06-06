@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from pathlib import Path
+import threading
 
 from phantom.api.accounts import AccountAPI
 from phantom.api.brokers import BrokerAPI
@@ -20,11 +23,13 @@ class Phantom:
         self._conn = get_connection(db_path)
         run_migrations(self._conn)
 
+        self._lock = threading.RLock()
+
         broker_repo = BrokerRepo(self._conn)
 
-        self.accounts = AccountAPI(self._conn)
-        self.orders = OrderAPI(self._conn, broker_repo)
-        self.positions = PositionAPI(self._conn, broker_repo)
+        self.accounts = AccountAPI(self._conn, lock=self._lock)
+        self.orders = OrderAPI(self._conn, broker_repo, lock=self._lock)
+        self.positions = PositionAPI(self._conn, broker_repo, lock=self._lock)
         self.notes = NoteAPI(self._conn, data_dir=data_dir)
         self.data = DataAPI(self._conn, data_dir=data_dir)
         self.brokers = BrokerAPI(self._conn)

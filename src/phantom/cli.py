@@ -18,6 +18,7 @@ data_app = typer.Typer(help="Manage market data")
 broker_app = typer.Typer(help="Manage broker profiles")
 run_app = typer.Typer(help="Run backtests and paper trading")
 replay_app = typer.Typer(help="Replay historical positions")
+service_app = typer.Typer(help="Manage systemd services")
 
 app.add_typer(account_app, name="account")
 app.add_typer(order_app, name="order")
@@ -28,6 +29,7 @@ app.add_typer(data_app, name="data")
 app.add_typer(broker_app, name="broker")
 app.add_typer(run_app, name="run")
 app.add_typer(replay_app, name="replay")
+app.add_typer(service_app, name="service")
 
 console = Console()
 
@@ -633,6 +635,7 @@ def report_show(
         None, "--compare-brokers", help="Comma-separated broker names"
     ),
     export_csv: str = typer.Option(None, "--export-csv", help="Export equity curve to CSV"),
+    chart: bool = typer.Option(False, "--chart", help="Display equity curve as terminal chart"),
 ):
     """Display performance and cost report for an account."""
     try:
@@ -807,6 +810,12 @@ def report_show(
                 console.print(f"[green]Exported {count} rows to {export_csv}[/green]")
             except Exception as e:
                 console.print(f"[yellow]Warning:[/yellow] CSV export failed: {e}")
+
+        # Render equity chart
+        if chart:
+            from phantom.reports.formatters import render_equity_chart
+
+            render_equity_chart(curve, account_name=account)
 
     except PhantomError as e:
         console.print(f"[red]Error:[/red] {e}")
@@ -1126,6 +1135,67 @@ def replay_single(
             )
         console.print(Panel(details, title="Replay Result"))
     except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@service_app.command("install")
+def service_install(
+    account: str = typer.Option(..., "--account", help="Account name"),
+    interval: int = typer.Option(300, "--interval", help="Interval between ticks in seconds"),
+):
+    """Install a systemd user service for paper trading an account."""
+    try:
+        from pathlib import Path
+        import shutil
+
+        from jinja2 import Template
+
+        ph = get_phantom()
+        # Verify account exists
+        ph.accounts.get(account)
+
+        # Find phantom binary path
+        phantom_bin = shutil.which("phantom")
+        if not phantom_bin:
+            console.print("[red]Error:[/red] phantom command not found in PATH")
+            raise typer.Exit(code=1)
+
+        # Create service file path
+        service_dir = Path.home() / ".config" / "systemd" / "user"
+        service_dir.mkdir(parents=True, exist_ok=True)
+        service_file = service_dir / f"phantom-{account}.service"
+
+        # Load and render template
+        template_path = Path(__file__).parent / "templates" / "phantom.service.jinja2"
+        template_content = template_path.read_text(encoding="utf-8")
+        template = Template(template_content)
+
+        rendered = template.render(
+            account=account,
+            phantom_bin=phantom_bin,
+            interval=interval,
+        )
+
+        # Write service file
+        service_file.write_text(rendered, encoding="utf-8")
+
+        # Instructions
+        console.print(
+            f"[green]Service file installed:[/green] {service_file}\n"
+            f"\nTo enable and start the service, run:\n"
+            f"  systemctl --user daemon-reload\n"
+            f"  systemctl --user enable phantom-{account}\n"
+            f"  systemctl --user start phantom-{account}\n"
+            f"\nTo view status:\n"
+            f"  systemctl --user status phantom-{account}\n"
+            f"\nTo view logs:\n"
+            f"  journalctl --user -u phantom-{account} -f"
+        )
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+    except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1)
 

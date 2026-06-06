@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import sqlite3
+import threading
 
 try:
     import pandas as pd
@@ -16,10 +19,11 @@ from phantom.reports.equity_curve import combine_equity_curves
 
 
 class AccountAPI:
-    def __init__(self, conn: sqlite3.Connection):
+    def __init__(self, conn: sqlite3.Connection, lock: threading.RLock | None = None):
         self._conn = conn
         self._repo = AccountRepo(conn)
         self._broker_repo = BrokerRepo(conn)
+        self._lock = lock or threading.RLock()
 
     def create(
         self,
@@ -34,26 +38,27 @@ class AccountAPI:
         algorithm_params: dict | None = None,
         child_account_ids: list[str] | None = None,
     ) -> Account:
-        self._broker_repo.get_by_name(broker)
-        broker_id = self._broker_repo.get_id_by_name(broker)
-        if account_type == "pattern" and not pattern_tag:
-            raise ValidationError("pattern_tag is required for pattern accounts")
-        if account_type == "algorithm" and not algorithm_id:
-            raise ValidationError("algorithm_id is required for algorithm accounts")
-        account = Account(
-            name=name,
-            account_type=account_type,
-            broker_profile_id=broker_id,
-            base_currency=currency,
-            initial_capital=capital,
-            cash=capital,
-            pattern_tag=pattern_tag,
-            algorithm_id=algorithm_id,
-            algorithm_version=algorithm_version,
-            algorithm_params=algorithm_params,
-            child_account_ids=child_account_ids,
-        )
-        return self._repo.create(account)
+        with self._lock:
+            self._broker_repo.get_by_name(broker)
+            broker_id = self._broker_repo.get_id_by_name(broker)
+            if account_type == "pattern" and not pattern_tag:
+                raise ValidationError("pattern_tag is required for pattern accounts")
+            if account_type == "algorithm" and not algorithm_id:
+                raise ValidationError("algorithm_id is required for algorithm accounts")
+            account = Account(
+                name=name,
+                account_type=account_type,
+                broker_profile_id=broker_id,
+                base_currency=currency,
+                initial_capital=capital,
+                cash=capital,
+                pattern_tag=pattern_tag,
+                algorithm_id=algorithm_id,
+                algorithm_version=algorithm_version,
+                algorithm_params=algorithm_params,
+                child_account_ids=child_account_ids,
+            )
+            return self._repo.create(account)
 
     def list(self, account_type: str | None = None) -> list[Account]:
         return self._repo.list(account_type=account_type)
@@ -65,7 +70,8 @@ class AccountAPI:
             return self._repo.get_by_name(id_or_name)
 
     def delete(self, account_id: str) -> None:
-        self._repo.delete(account_id)
+        with self._lock:
+            self._repo.delete(account_id)
 
     def get_margin_summary(self, account_name: str) -> MarginSummary:
         """
