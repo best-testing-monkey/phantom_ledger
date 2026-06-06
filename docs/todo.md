@@ -45,10 +45,10 @@ Check off each story as it is completed.
 ### E4 · Data Layer
 > Depends on E1. Needed by E9 (simulation loop reads prices).
 
-- [ ] E4-S01 — [HistoricalProvider: yfinance fetch + Parquet cache](tickets/e04-s01.md)
-- [ ] E4-S02 — [Parquet cache management (freshness, append, splits)](tickets/e04-s02.md)
-- [ ] E4-S03 — [CLI: `phantom data fetch`](tickets/e04-s03.md)
-- [ ] E4-S04 — [DataProvider protocol + HistoricalProvider conformance](tickets/e04-s04.md)
+- [x] E4-S01 — [HistoricalProvider: yfinance fetch + Parquet cache](tickets/e04-s01.md)
+- [x] E4-S02 — [Parquet cache management (freshness, append, splits)](tickets/e04-s02.md)
+- [x] E4-S03 — [CLI: `phantom data fetch`](tickets/e04-s03.md)
+- [x] E4-S04 — [DataProvider protocol + HistoricalProvider conformance](tickets/e04-s04.md)
 
 ---
 
