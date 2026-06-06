@@ -29,16 +29,6 @@ phantom order place --account my-account --ticker AAPL --direction long --type m
 
 ## Install
 
-### As a dependency
-
-```bash
-uv add phantom-ledger
-# or
-pip install phantom-ledger
-```
-
-### From source
-
 ```bash
 git clone --recurse-submodules git@github.com:best-testing-monkey/phantom_ledger.git
 cd phantom_ledger
@@ -46,6 +36,38 @@ uv sync
 ```
 
 > The `--recurse-submodules` flag is required to pull the `price_cache` data submodule.
+
+### As a submodule in an existing repo
+
+```bash
+git submodule add --recurse-submodules git@github.com:best-testing-monkey/phantom_ledger.git vendor/phantom_ledger
+git submodule update --init --recursive
+```
+
+Then add it as an editable path dependency so your tooling can resolve imports:
+
+```toml
+# pyproject.toml
+[project]
+dependencies = [
+    "phantom-ledger",
+]
+
+[tool.uv.sources]
+phantom-ledger = { path = "vendor/phantom_ledger", editable = true }
+```
+
+```bash
+uv sync
+```
+
+Anyone cloning your repo afterwards needs:
+
+```bash
+git clone --recurse-submodules git@github.com:you/your-repo.git
+# or, if already cloned without submodules:
+git submodule update --init --recursive
+```
 
 ### Development (tests + linter)
 

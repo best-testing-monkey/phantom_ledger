@@ -1,6 +1,6 @@
 # Library Reference
 
-Phantom Ledger is importable as a plain Python package. The entire public surface lives in the `phantom` namespace.
+Phantom Ledger is importable as a plain Python package once cloned from GitHub (see the [README](../README.md) for install instructions). The entire public surface lives in the `phantom` namespace.
 
 ```python
 from phantom import (
