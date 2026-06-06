@@ -289,9 +289,9 @@ Check off each story as it is completed.
 
 ### E16 · Web UI
 
-- [ ] E16-S01 — [FastAPI app with CORS, static files, Jinja2](tickets/e16-s01.md)
-- [ ] E16-S02 — [Dashboard page: account overview, open positions, recent trades](tickets/e16-s02.md)
-- [ ] E16-S03 — [Position detail page: equity chart, cost breakdown, notes](tickets/e16-s03.md)
-- [ ] E16-S04 — [Order placement form](tickets/e16-s04.md)
-- [ ] E16-S05 — [Broker comparison view](tickets/e16-s05.md)
-- [ ] E16-S06 — [HTMX live updates during paper trading](tickets/e16-s06.md)
+- [x] E16-S01 — [FastAPI app with CORS, static files, Jinja2](tickets/e16-s01.md)
+- [x] E16-S02 — [Dashboard page: account overview, open positions, recent trades](tickets/e16-s02.md)
+- [x] E16-S03 — [Position detail page: equity chart, cost breakdown, notes](tickets/e16-s03.md)
+- [x] E16-S04 — [Order placement form](tickets/e16-s04.md)
+- [x] E16-S05 — [Broker comparison view](tickets/e16-s05.md)
+- [x] E16-S06 — [HTMX live updates during paper trading](tickets/e16-s06.md)
