@@ -489,11 +489,80 @@ def note_show(note_id: str = typer.Argument(..., help="Note ULID")):
 
 
 @report_app.command("show")
-def report_show():
-    """Show report."""
+def report_show(account: str = typer.Option(..., "--account")):
+    """Display performance and cost report for an account."""
     try:
-        get_phantom()
-        console.print("Report not yet implemented")
+        from rich.panel import Panel
+        from rich.table import Table
+
+        from phantom.reports.metrics import (
+            EquityPoint,
+            aggregate_costs,
+            calculate_metrics,
+            calculate_trade_metrics,
+        )
+
+        ph = get_phantom()
+
+        acc = ph.accounts.get(account)
+        positions = ph.positions.list(account_name=account)
+        closed = sorted(
+            [p for p in positions if p.status == "closed" and p.exit_datetime is not None],
+            key=lambda p: p.exit_datetime,
+        )
+
+        # Build equity curve
+        equity = acc.initial_capital
+        curve = []
+        for pos in closed:
+            equity += pos.realized_pnl or 0.0
+            curve.append(EquityPoint(timestamp=pos.exit_datetime, equity=equity))
+
+        # Performance panel
+        perf_table = Table(show_header=False, box=None)
+        perf_table.add_column("Metric", style="bold")
+        perf_table.add_column("Value")
+
+        if len(curve) >= 2:
+            em = calculate_metrics(curve)
+            perf_table.add_row("Total Return", f"{em.total_return_pct:.2f}%")
+            perf_table.add_row("CAGR", f"{em.cagr_pct:.2f}%")
+            perf_table.add_row("Max Drawdown", f"{em.max_drawdown_pct:.2f}%")
+            perf_table.add_row("Max DD Duration", f"{em.max_drawdown_duration_days} days")
+        else:
+            console.print(
+                "[yellow]Notice:[/yellow] Fewer than 2 closed positions — equity metrics skipped."
+            )
+
+        if closed:
+            tm = calculate_trade_metrics(positions)
+            perf_table.add_row("Trade Count", str(tm.trade_count))
+            perf_table.add_row("Win Rate", f"{tm.win_rate_pct:.1f}%")
+            perf_table.add_row(
+                "Profit Factor",
+                f"{tm.profit_factor:.2f}" if tm.profit_factor != float("inf") else "∞",
+            )
+            perf_table.add_row("Expectancy", f"{tm.expectancy:.2f}")
+        else:
+            console.print("[yellow]Notice:[/yellow] No closed positions — trade metrics skipped.")
+
+        # Cost panel
+        cs = aggregate_costs(positions)
+        cost_table = Table(show_header=False, box=None)
+        cost_table.add_column("Cost", style="bold")
+        cost_table.add_column("Amount")
+        cost_table.add_row("Commission", f"{cs.total_commission:.4f}")
+        cost_table.add_row("Spread", f"{cs.total_spread:.4f}")
+        cost_table.add_row("Slippage", f"{cs.total_slippage:.4f}")
+        cost_table.add_row("Overnight", f"{cs.total_overnight:.4f}")
+        cost_table.add_row("FX", f"{cs.total_fx:.4f}")
+        cost_table.add_row("Dividends", f"{cs.total_dividends:.4f}")
+        cost_table.add_row("─" * 10, "─" * 10)
+        cost_table.add_row("Total", f"{cs.total_cost:.4f}")
+
+        console.print(Panel(perf_table, title=f"Performance — {account}"))
+        console.print(Panel(cost_table, title="Cost Breakdown"))
+
     except PhantomError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1)

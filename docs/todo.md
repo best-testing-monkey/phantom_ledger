@@ -119,10 +119,10 @@ Check off each story as it is completed.
 ### E12 · Reporting (MVP)
 > Depends on E1 (DB). Meaningful output requires closed positions, but the calculator can be built earlier.
 
-- [ ] E12-S01 — [Metrics calculator: total return, CAGR, max drawdown, drawdown duration](tickets/e12-s01.md)
-- [ ] E12-S02 — [Trade-level metrics: win rate, avg win/loss, profit factor, expectancy](tickets/e12-s02.md)
-- [ ] E12-S03 — [Cost breakdown aggregation across closed positions](tickets/e12-s03.md)
-- [ ] E12-S04 — [CLI: `phantom report --account <name>`](tickets/e12-s04.md)
+- [x] E12-S01 — [Metrics calculator: total return, CAGR, max drawdown, drawdown duration](tickets/e12-s01.md)
+- [x] E12-S02 — [Trade-level metrics: win rate, avg win/loss, profit factor, expectancy](tickets/e12-s02.md)
+- [x] E12-S03 — [Cost breakdown aggregation across closed positions](tickets/e12-s03.md)
+- [x] E12-S04 — [CLI: `phantom report --account <name>`](tickets/e12-s04.md)
 
 ---
 
