@@ -21,6 +21,7 @@ class Order(BaseModel):
     stop_price: float | None = None
     trailing_amount: float | None = None
     trailing_pct: float | None = None
+    trailing_peak: float | None = None
     take_profit: float | None = None
     stop_loss: float | None = None
 
@@ -33,3 +34,4 @@ class Order(BaseModel):
     rejection_reason: str | None = None
 
     position_id: str | None = None
+    oco_sibling_id: str | None = None

@@ -183,12 +183,12 @@ Check off each story as it is completed.
 
 ### E6 · Order System (remaining)
 
-- [ ] E6-S09 — [Stop order](tickets/e06-s09.md)
-- [ ] E6-S10 — [Stop-Limit order](tickets/e06-s10.md)
-- [ ] E6-S11 — [Trailing Stop order](tickets/e06-s11.md)
-- [ ] E6-S12 — [OCO (One-Cancels-Other)](tickets/e06-s12.md)
-- [ ] E6-S13 — [Margin validation on order placement](tickets/e06-s13.md)
-- [ ] E6-S14 — [Order rejection reasons (funds, margin, hours, instrument)](tickets/e06-s14.md)
+- [x] E6-S09 — [Stop order](tickets/e06-s09.md)
+- [x] E6-S10 — [Stop-Limit order](tickets/e06-s10.md)
+- [x] E6-S11 — [Trailing Stop order](tickets/e06-s11.md)
+- [x] E6-S12 — [OCO (One-Cancels-Other)](tickets/e06-s12.md)
+- [x] E6-S13 — [Margin validation on order placement](tickets/e06-s13.md)
+- [x] E6-S14 — [Order rejection reasons (funds, margin, hours, instrument)](tickets/e06-s14.md)
 
 ### E7 · Position System (remaining)
 

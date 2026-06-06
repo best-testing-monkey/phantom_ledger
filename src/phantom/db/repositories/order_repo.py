@@ -14,9 +14,10 @@ class OrderRepo:
             """INSERT INTO orders (
                 id, account_id, ticker, instrument_type, direction, order_type,
                 quantity, status, limit_price, stop_price, trailing_amount, trailing_pct,
-                take_profit, stop_loss, created_at, triggered_at, filled_at,
-                fill_price, good_til, max_close_datetime, rejection_reason, position_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                trailing_peak, take_profit, stop_loss, created_at, triggered_at, filled_at,
+                fill_price, good_til, max_close_datetime, rejection_reason, position_id,
+                oco_sibling_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 order.id,
                 order.account_id,
@@ -30,6 +31,7 @@ class OrderRepo:
                 order.stop_price,
                 order.trailing_amount,
                 order.trailing_pct,
+                order.trailing_peak,
                 order.take_profit,
                 order.stop_loss,
                 order.created_at.isoformat(),
@@ -40,6 +42,7 @@ class OrderRepo:
                 order.max_close_datetime.isoformat() if order.max_close_datetime else None,
                 order.rejection_reason,
                 order.position_id,
+                order.oco_sibling_id,
             ),
         )
         self._conn.commit()

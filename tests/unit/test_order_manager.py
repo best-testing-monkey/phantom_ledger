@@ -272,3 +272,395 @@ def test_expire_orders(setup_trading_env):
     assert active[0].ticker == "GOOGL"
     assert expired[0].ticker == "AAPL"
     assert expired[0].status == "expired"
+
+
+def test_evaluate_stop_order_long(setup_trading_env):
+    env = setup_trading_env
+    order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="long",
+        order_type="stop",
+        quantity=10.0,
+        stop_price=150.0,
+    )
+    placed = env["manager"].place(env["account"].id, order)
+
+    # Bar with high >= stop_price triggers
+    dates = pd.DatetimeIndex(["2025-01-02"])
+    df = pd.DataFrame(
+        {
+            "Open": [151.0],
+            "High": [152.0],
+            "Low": [148.0],
+            "Close": [150.5],
+        },
+        index=dates,
+    )
+    bar = df.iloc[0]
+
+    filled = env["manager"].evaluate(bar, [placed])
+    assert len(filled) == 1
+    assert filled[0].status == "filled"
+    # Fill at max(stop_price, open) = max(150, 151) = 151
+    assert filled[0].fill_price == 151.0
+
+
+def test_evaluate_stop_order_long_gap_protection(setup_trading_env):
+    env = setup_trading_env
+    order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="long",
+        order_type="stop",
+        quantity=10.0,
+        stop_price=150.0,
+    )
+    placed = env["manager"].place(env["account"].id, order)
+
+    # Gap up - open is below stop
+    dates = pd.DatetimeIndex(["2025-01-02"])
+    df = pd.DataFrame(
+        {
+            "Open": [148.0],
+            "High": [152.0],
+            "Low": [147.0],
+            "Close": [150.5],
+        },
+        index=dates,
+    )
+    bar = df.iloc[0]
+
+    filled = env["manager"].evaluate(bar, [placed])
+    assert len(filled) == 1
+    # Gap protection: fill at stop_price, not below
+    assert filled[0].fill_price == 150.0
+
+
+def test_evaluate_stop_order_short(setup_trading_env):
+    env = setup_trading_env
+    order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="short",
+        order_type="stop",
+        quantity=10.0,
+        stop_price=150.0,
+    )
+    placed = env["manager"].place(env["account"].id, order)
+
+    # Bar with low <= stop_price triggers
+    dates = pd.DatetimeIndex(["2025-01-02"])
+    df = pd.DataFrame(
+        {
+            "Open": [149.0],
+            "High": [152.0],
+            "Low": [148.0],
+            "Close": [150.5],
+        },
+        index=dates,
+    )
+    bar = df.iloc[0]
+
+    filled = env["manager"].evaluate(bar, [placed])
+    assert len(filled) == 1
+    # Fill at min(stop_price, open) = min(150, 149) = 149
+    assert filled[0].fill_price == 149.0
+
+
+def test_evaluate_stop_limit_order_trigger_and_fill_same_bar(setup_trading_env):
+    env = setup_trading_env
+    order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="long",
+        order_type="stop_limit",
+        quantity=10.0,
+        stop_price=150.0,
+        limit_price=151.0,
+    )
+    placed = env["manager"].place(env["account"].id, order)
+
+    # Stop is triggered (high >= 150) and limit is fillable (low <= 151)
+    dates = pd.DatetimeIndex(["2025-01-02"])
+    df = pd.DataFrame(
+        {
+            "Open": [152.0],
+            "High": [153.0],
+            "Low": [149.0],
+            "Close": [150.5],
+        },
+        index=dates,
+    )
+    bar = df.iloc[0]
+
+    filled = env["manager"].evaluate(bar, [placed])
+    assert len(filled) == 1
+    assert filled[0].status == "filled"
+    assert filled[0].fill_price == 151.0
+
+
+def test_evaluate_stop_limit_order_trigger_only(setup_trading_env):
+    env = setup_trading_env
+    order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="long",
+        order_type="stop_limit",
+        quantity=10.0,
+        stop_price=150.0,
+        limit_price=151.0,
+    )
+    placed = env["manager"].place(env["account"].id, order)
+
+    # Stop triggered (high >= 150) but limit not fillable (low > 151)
+    dates = pd.DatetimeIndex(["2025-01-02"])
+    df = pd.DataFrame(
+        {
+            "Open": [152.0],
+            "High": [153.0],
+            "Low": [152.0],
+            "Close": [150.5],
+        },
+        index=dates,
+    )
+    bar = df.iloc[0]
+
+    filled = env["manager"].evaluate(bar, [placed])
+    assert len(filled) == 0
+    # Order would be triggered but not filled - in reality would update DB
+
+
+def test_evaluate_trailing_stop_long(setup_trading_env):
+    env = setup_trading_env
+    order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="long",
+        order_type="trailing_stop",
+        quantity=10.0,
+        trailing_amount=5.0,
+    )
+    placed = env["manager"].place(env["account"].id, order)
+
+    # First bar - establishes peak
+    dates1 = pd.DatetimeIndex(["2025-01-02"])
+    df1 = pd.DataFrame(
+        {
+            "Open": [150.0],
+            "High": [155.0],
+            "Low": [149.0],
+            "Close": [154.0],
+        },
+        index=dates1,
+    )
+    bar1 = df1.iloc[0]
+
+    filled1 = env["manager"].evaluate(bar1, [placed])
+    assert len(filled1) == 0  # Not triggered yet
+    # Peak should be updated to 155
+
+    # Second bar - peak moves higher
+    updated_order = placed.model_copy(update={"trailing_peak": 155.0})
+    dates2 = pd.DatetimeIndex(["2025-01-03"])
+    df2 = pd.DataFrame(
+        {
+            "Open": [156.0],
+            "High": [157.0],
+            "Low": [154.0],
+            "Close": [156.5],
+        },
+        index=dates2,
+    )
+    bar2 = df2.iloc[0]
+
+    filled2 = env["manager"].evaluate(bar2, [updated_order])
+    assert len(filled2) == 0  # Still not triggered
+
+    # Third bar - price drops, triggers stop
+    updated_order2 = updated_order.model_copy(update={"trailing_peak": 157.0})
+    dates3 = pd.DatetimeIndex(["2025-01-04"])
+    df3 = pd.DataFrame(
+        {
+            "Open": [150.0],
+            "High": [152.0],
+            "Low": [149.0],
+            "Close": [151.0],
+        },
+        index=dates3,
+    )
+    bar3 = df3.iloc[0]
+
+    filled3 = env["manager"].evaluate(bar3, [updated_order2])
+    assert len(filled3) == 1
+    # Trigger level = 157 - 5 = 152, fills at max(152, 150) = 152
+    assert filled3[0].status == "filled"
+    assert filled3[0].fill_price == 152.0
+
+
+def test_evaluate_trailing_stop_short(setup_trading_env):
+    env = setup_trading_env
+    order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="short",
+        order_type="trailing_stop",
+        quantity=10.0,
+        trailing_amount=5.0,
+    )
+    placed = env["manager"].place(env["account"].id, order)
+
+    # First bar - establishes peak (min low)
+    dates1 = pd.DatetimeIndex(["2025-01-02"])
+    df1 = pd.DataFrame(
+        {
+            "Open": [150.0],
+            "High": [155.0],
+            "Low": [145.0],
+            "Close": [146.0],
+        },
+        index=dates1,
+    )
+    bar1 = df1.iloc[0]
+
+    filled1 = env["manager"].evaluate(bar1, [placed])
+    assert len(filled1) == 0  # Not triggered yet
+    # Peak should be updated to 145
+
+    # Second bar - peak moves lower
+    updated_order = placed.model_copy(update={"trailing_peak": 145.0})
+    dates2 = pd.DatetimeIndex(["2025-01-03"])
+    df2 = pd.DataFrame(
+        {
+            "Open": [144.0],
+            "High": [147.0],
+            "Low": [143.0],
+            "Close": [144.5],
+        },
+        index=dates2,
+    )
+    bar2 = df2.iloc[0]
+
+    filled2 = env["manager"].evaluate(bar2, [updated_order])
+    assert len(filled2) == 0  # Still not triggered
+
+    # Third bar - price rises, triggers stop
+    updated_order2 = updated_order.model_copy(update={"trailing_peak": 143.0})
+    dates3 = pd.DatetimeIndex(["2025-01-04"])
+    df3 = pd.DataFrame(
+        {
+            "Open": [150.0],
+            "High": [152.0],
+            "Low": [149.0],
+            "Close": [151.0],
+        },
+        index=dates3,
+    )
+    bar3 = df3.iloc[0]
+
+    filled3 = env["manager"].evaluate(bar3, [updated_order2])
+    assert len(filled3) == 1
+    # Trigger level = 143 + 5 = 148, fills at min(148, 150) = 148
+    assert filled3[0].status == "filled"
+    assert filled3[0].fill_price == 148.0
+
+
+def test_place_or_reject_insufficient_funds(setup_trading_env):
+    env = setup_trading_env
+    order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="long",
+        order_type="limit",
+        quantity=1000.0,
+        limit_price=100.0,
+    )
+
+    rejected = env["manager"].place_or_reject(env["account"].id, order)
+    assert rejected.status == "rejected"
+    assert rejected.rejection_reason == "insufficient_funds"
+
+
+def test_create_oco_pair(setup_trading_env):
+    env = setup_trading_env
+    tp_order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="long",
+        order_type="limit",
+        quantity=10.0,
+        limit_price=160.0,  # Take profit at 160
+    )
+    sl_order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="long",
+        order_type="stop",
+        quantity=10.0,
+        stop_price=140.0,  # Stop loss at 140
+    )
+
+    tp_placed, sl_placed = env["manager"].create_oco_pair(env["account"].id, tp_order, sl_order)
+
+    assert tp_placed.oco_sibling_id == sl_placed.id
+    assert sl_placed.oco_sibling_id == tp_placed.id
+    assert tp_placed.status == "pending"
+    assert sl_placed.status == "pending"
+
+
+def test_oco_pair_fills_and_cancels_sibling(setup_trading_env):
+    env = setup_trading_env
+    tp_order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="long",
+        order_type="limit",
+        quantity=10.0,
+        limit_price=160.0,
+    )
+    sl_order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="long",
+        order_type="stop",
+        quantity=10.0,
+        stop_price=140.0,
+    )
+
+    tp_placed, sl_placed = env["manager"].create_oco_pair(env["account"].id, tp_order, sl_order)
+
+    # TP hits (price goes to 161, low is 159)
+    dates = pd.DatetimeIndex(["2025-01-02"])
+    df = pd.DataFrame(
+        {
+            "Open": [161.0],
+            "High": [162.0],
+            "Low": [159.0],
+            "Close": [161.5],
+        },
+        index=dates,
+    )
+    bar = df.iloc[0]
+
+    filled = env["manager"].evaluate(bar, [tp_placed])
+    assert len(filled) == 1
+    assert filled[0].status == "filled"
+
+    # Handle fill (cancel sibling)
+    env["manager"].handle_oco_fill(filled[0])
+
+    # Verify sibling is cancelled
+    sl_cancelled = env["order_repo"].get(sl_placed.id)
+    assert sl_cancelled.status == "cancelled"
