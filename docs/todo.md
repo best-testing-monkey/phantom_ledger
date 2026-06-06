@@ -223,9 +223,9 @@ Check off each story as it is completed.
 ### E10 · Replay (remaining)
 > Depends on E9-S09/S10 (overnight/dividend) and E8-S01 (margin).
 
-- [ ] E10-S06 — [Replay with overnight + dividend hooks](tickets/e10-s06.md)
-- [ ] E10-S07 — [Replay with margin simulation](tickets/e10-s07.md)
-- [ ] E10-S08 — [Performance: share price data load across positions for same ticker](tickets/e10-s08.md)
+- [x] E10-S06 — [Replay with overnight + dividend hooks](tickets/e10-s06.md)
+- [x] E10-S07 — [Replay with margin simulation](tickets/e10-s07.md)
+- [x] E10-S08 — [Performance: share price data load across positions for same ticker](tickets/e10-s08.md)
 
 ### E11 · Trade Notes (remaining)
 
