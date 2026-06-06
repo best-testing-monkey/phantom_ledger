@@ -67,21 +67,19 @@ class PositionRepo:
             raise NotFoundError("Position", position_id)
         return self._row_to_model(row)
 
-    def list_by_account(self, account_id: str, status: str | None = None) -> list[Position]:
+    def list_by_account(
+        self, account_id: str, status: str | None = None, ticker: str | None = None
+    ) -> list[Position]:
+        query = "SELECT * FROM positions WHERE account_id = ?"
+        params = [account_id]
         if status:
-            rows = self._conn.execute(
-                """SELECT * FROM positions
-                WHERE account_id = ? AND status = ?
-                ORDER BY entry_datetime""",
-                (account_id, status),
-            ).fetchall()
-        else:
-            rows = self._conn.execute(
-                """SELECT * FROM positions
-                WHERE account_id = ?
-                ORDER BY entry_datetime""",
-                (account_id,),
-            ).fetchall()
+            query += " AND status = ?"
+            params.append(status)
+        if ticker:
+            query += " AND ticker = ?"
+            params.append(ticker)
+        query += " ORDER BY entry_datetime"
+        rows = self._conn.execute(query, params).fetchall()
         return [self._row_to_model(r) for r in rows]
 
     def list_open(self) -> list[Position]:
@@ -90,14 +88,24 @@ class PositionRepo:
         ).fetchall()
         return [self._row_to_model(r) for r in rows]
 
+    def list_open_all(self) -> list[Position]:
+        rows = self._conn.execute(
+            "SELECT * FROM positions WHERE status = 'open' ORDER BY entry_datetime"
+        ).fetchall()
+        return [self._row_to_model(r) for r in rows]
+
     def update(self, position: Position) -> Position:
         cursor = self._conn.execute(
             """UPDATE positions SET
+                take_profit=?, stop_loss=?, trailing_stop_peak=?,
                 exit_price=?, exit_datetime=?, realized_pnl=?, status=?, close_reason=?,
                 commission_exit=?, spread_cost=?, slippage_cost=?, overnight_costs=?,
-                dividend_adjustments=?, fx_conversion_cost=?, trailing_stop_peak=?
+                dividend_adjustments=?, fx_conversion_cost=?
             WHERE id=?""",
             (
+                position.take_profit,
+                position.stop_loss,
+                position.trailing_stop_peak,
                 position.exit_price,
                 position.exit_datetime.isoformat() if position.exit_datetime else None,
                 position.realized_pnl,
@@ -109,7 +117,6 @@ class PositionRepo:
                 position.overnight_costs,
                 position.dividend_adjustments,
                 position.fx_conversion_cost,
-                position.trailing_stop_peak,
                 position.id,
             ),
         )

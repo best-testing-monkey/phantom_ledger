@@ -17,3 +17,6 @@ def ensure_dirs(data_dir: str | Path) -> None:
     data_dir = Path(data_dir)
     for subdir in ("prices", "rates", "notes"):
         (data_dir / subdir).mkdir(parents=True, exist_ok=True)
+
+
+TP_SL_CONFLICT_MODE = "conservative"

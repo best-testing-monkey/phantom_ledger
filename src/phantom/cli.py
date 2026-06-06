@@ -244,12 +244,24 @@ def order_cancel(order_id: str = typer.Argument(...)):
         raise typer.Exit(code=1)
 
 
+def _format_duration(entry_datetime) -> str:
+    from phantom.utils.datetime import now_utc
+
+    delta = now_utc() - entry_datetime
+    days = delta.days
+    hours, remainder = divmod(delta.seconds, 3600)
+    minutes = remainder // 60
+    if days > 0:
+        return f"{days}d {hours}h"
+    return f"{hours}h {minutes}m"
+
+
 @position_app.command("list")
 def position_list(
-    account: str = typer.Option(..., "--account"),
+    account: str = typer.Option(None, "--account"),
     status: str = typer.Option(None, "--status"),
 ):
-    """List positions for an account."""
+    """List positions."""
     try:
         from rich.table import Table
 
@@ -258,25 +270,107 @@ def position_list(
         if not positions:
             console.print("No positions found.")
             return
-        table = Table(title=f"Positions — {account}")
+        table = Table(title="Positions")
         table.add_column("ID")
-        table.add_column("Ticker")
-        table.add_column("Direction")
-        table.add_column("Entry Price")
-        table.add_column("Quantity")
+        table.add_column("Symbol")
+        table.add_column("Side")
+        table.add_column("Qty", justify="right")
+        table.add_column("Entry", justify="right")
+        table.add_column("Duration")
         table.add_column("Status")
-        table.add_column("Entry At")
         for p in positions:
             table.add_row(
-                p.id[:8] + "...",
+                p.id[:8],
                 p.ticker,
                 p.direction,
-                f"{p.entry_price:.2f}",
                 str(p.quantity),
+                f"{p.entry_price:.4f}",
+                _format_duration(p.entry_datetime),
                 p.status,
-                str(p.entry_datetime)[:19],
             )
         console.print(table)
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@position_app.command("show")
+def position_show(position_id: str = typer.Argument(...)):
+    """Show position details."""
+    try:
+        from rich.panel import Panel
+
+        ph = get_phantom()
+        p = ph.positions.get(position_id)
+        lines = [
+            f"ID: {p.id}",
+            f"Symbol: {p.ticker}  Type: {p.instrument_type}",
+            f"Side: {p.direction}  Qty: {p.quantity}",
+            f"Entry: {p.entry_price:.4f}  Duration: {_format_duration(p.entry_datetime)}",
+            f"TP: {p.take_profit}  SL: {p.stop_loss}",
+            f"Commission Entry: {p.commission_entry:.4f}",
+            f"Spread Cost: {p.spread_cost:.4f}",
+            f"Overnight: {p.overnight_costs:.4f}",
+            f"Status: {p.status}",
+        ]
+        console.print(Panel("\n".join(lines), title="Position Detail"))
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@position_app.command("close")
+def position_close(
+    position_id: str = typer.Argument(...),
+    yes: bool = typer.Option(False, "--yes", "-y"),
+    reason: str = typer.Option("manual", "--reason"),
+    price: float = typer.Option(..., "--price", help="Exit price"),
+):
+    """Close an open position at specified price."""
+    try:
+        from rich.panel import Panel
+
+        ph = get_phantom()
+        pos = ph.positions.get(position_id)
+        if pos.status != "open":
+            console.print(f"[red]Error:[/red] Position is already {pos.status}")
+            raise typer.Exit(code=1)
+        if not yes:
+            typer.confirm(f"Close position {position_id[:8]}?", abort=True)
+        closed = ph.positions.close(position_id=position_id, close_reason=reason, exit_price=price)
+        console.print(
+            Panel(
+                f"Realized P&L: {closed.realized_pnl:.2f}\n"
+                f"Commission paid: {closed.commission_entry + closed.commission_exit:.2f}\n"
+                f"Close reason: {closed.close_reason}",
+                title=f"Position Closed: {position_id[:8]}",
+            )
+        )
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@position_app.command("modify")
+def position_modify(
+    position_id: str = typer.Argument(...),
+    tp: float = typer.Option(None, "--tp"),
+    sl: float = typer.Option(None, "--sl"),
+):
+    """Update take-profit and/or stop-loss on an open position."""
+    if tp is None and sl is None:
+        console.print("[red]Error:[/red] Provide at least --tp or --sl.")
+        raise typer.Exit(code=1)
+    try:
+        from rich.panel import Panel
+
+        ph = get_phantom()
+        position = ph.positions.modify(position_id, take_profit=tp, stop_loss=sl)
+        msg = (
+            f"Position [bold]{position.id[:8]}[/bold] updated.\n"
+            f"TP: {position.take_profit}  SL: {position.stop_loss}"
+        )
+        console.print(Panel(msg, title="Position Modified"))
     except PhantomError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1)

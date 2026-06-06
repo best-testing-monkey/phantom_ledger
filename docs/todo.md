@@ -76,14 +76,14 @@ Check off each story as it is completed.
 > Depends on E6.
 
 - [x] E7-S01 — [Position model with all fields](tickets/e07-s01.md)
-- [ ] E7-S02 — [position_repo](tickets/e07-s02.md)
-- [ ] E7-S03 — [PositionManager.update(): unrealized P&L, TP/SL check](tickets/e07-s03.md)
-- [ ] E7-S04 — [TP/SL exit logic (trigger price, exit costs, close_reason)](tickets/e07-s04.md)
-- [ ] E7-S05 — [TP/SL ambiguity handling (conservative / optimistic / proximity)](tickets/e07-s05.md)
-- [ ] E7-S06 — [max_close_datetime auto-close](tickets/e07-s06.md)
-- [ ] E7-S07 — [Manual close CLI: `phantom position close`](tickets/e07-s07.md)
-- [ ] E7-S08 — [Position modify CLI: `phantom position modify`](tickets/e07-s08.md)
-- [ ] E7-S09 — [CLI: `phantom position list` / `phantom position show`](tickets/e07-s09.md)
+- [x] E7-S02 — [position_repo](tickets/e07-s02.md)
+- [x] E7-S03 — [PositionManager.update(): unrealized P&L, TP/SL check](tickets/e07-s03.md)
+- [x] E7-S04 — [TP/SL exit logic (trigger price, exit costs, close_reason)](tickets/e07-s04.md)
+- [x] E7-S05 — [TP/SL ambiguity handling (conservative / optimistic / proximity)](tickets/e07-s05.md)
+- [x] E7-S06 — [max_close_datetime auto-close](tickets/e07-s06.md)
+- [x] E7-S07 — [Manual close CLI: `phantom position close`](tickets/e07-s07.md)
+- [x] E7-S08 — [Position modify CLI: `phantom position modify`](tickets/e07-s08.md)
+- [x] E7-S09 — [CLI: `phantom position list` / `phantom position show`](tickets/e07-s09.md)
 
 ### E9 · Simulation Engine (MVP)
 > Depends on E7 (position updates) and E4 (price data).

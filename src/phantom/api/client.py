@@ -24,7 +24,7 @@ class Phantom:
 
         self.accounts = AccountAPI(self._conn)
         self.orders = OrderAPI(self._conn, broker_repo)
-        self.positions = PositionAPI(self._conn)
+        self.positions = PositionAPI(self._conn, broker_repo)
         self.notes = NoteAPI(self._conn)
         self.data = DataAPI(self._conn, data_dir=data_dir)
         self.brokers = BrokerAPI(self._conn)
