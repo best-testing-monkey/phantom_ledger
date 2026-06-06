@@ -192,13 +192,13 @@ Check off each story as it is completed.
 
 ### E7 · Position System (remaining)
 
-- [ ] E7-S10 — [Trailing stop tracking per bar](tickets/e07-s10.md)
-- [ ] E7-S11 — [Overnight cost accrual per day boundary](tickets/e07-s11.md)
-- [ ] E7-S12 — [overnight_log table persistence](tickets/e07-s12.md)
-- [ ] E7-S13 — [Dividend processing on ex-date](tickets/e07-s13.md)
-- [ ] E7-S14 — [dividend_log table persistence](tickets/e07-s14.md)
-- [ ] E7-S15 — [Margin tracking per position](tickets/e07-s15.md)
-- [ ] E7-S16 — [Stock vs CFD behavior (overnight/leverage/margin gating)](tickets/e07-s16.md)
+- [x] E7-S10 — [Trailing stop tracking per bar](tickets/e07-s10.md)
+- [x] E7-S11 — [Overnight cost accrual per day boundary](tickets/e07-s11.md)
+- [x] E7-S12 — [overnight_log table persistence](tickets/e07-s12.md)
+- [x] E7-S13 — [Dividend processing on ex-date](tickets/e07-s13.md)
+- [x] E7-S14 — [dividend_log table persistence](tickets/e07-s14.md)
+- [x] E7-S15 — [Margin tracking per position](tickets/e07-s15.md)
+- [x] E7-S16 — [Stock vs CFD behavior (overnight/leverage/margin gating)](tickets/e07-s16.md)
 
 ### E8 · Margin Engine
 > Depends on E7-S15 (per-position margin). Needed by E9-S11 and E10-S07.

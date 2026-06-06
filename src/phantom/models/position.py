@@ -24,6 +24,8 @@ class Position(BaseModel):
     trailing_stop_amount: float | None = None
     trailing_stop_pct: float | None = None
     trailing_stop_peak: float | None = None
+    trailing_stop_distance: float | None = None
+    peak_price: float | None = None
     max_close_datetime: datetime | None = None
 
     commission_entry: float = 0.0
@@ -31,8 +33,11 @@ class Position(BaseModel):
     spread_cost: float = 0.0
     slippage_cost: float = 0.0
     overnight_costs: float = 0.0
+    overnight_accrued: float = 0.0
+    last_bar_date: str | None = None
     dividend_adjustments: float = 0.0
     fx_conversion_cost: float = 0.0
+    country_code: str | None = None
 
     margin_required: float = 0.0
     leverage: float = 1.0
