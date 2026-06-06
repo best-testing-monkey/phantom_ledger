@@ -55,10 +55,10 @@ Check off each story as it is completed.
 ### E5 · Account System
 > Depends on E1. Needed by E6 (orders belong to accounts).
 
-- [ ] E5-S01 — [Account model (Pydantic) with account_type enum](tickets/e05-s01.md)
-- [ ] E5-S02 — [account_repo: CRUD in SQLite](tickets/e05-s02.md)
-- [ ] E5-S03 — [CLI: `phantom account create`](tickets/e05-s03.md)
-- [ ] E5-S04 — [CLI: `phantom account list` / `phantom account show`](tickets/e05-s04.md)
+- [x] E5-S01 — [Account model (Pydantic) with account_type enum](tickets/e05-s01.md)
+- [x] E5-S02 — [account_repo: CRUD in SQLite](tickets/e05-s02.md)
+- [x] E5-S03 — [CLI: `phantom account create`](tickets/e05-s03.md)
+- [x] E5-S04 — [CLI: `phantom account list` / `phantom account show`](tickets/e05-s04.md)
 
 ### E6 · Order System
 > Depends on E5 (accounts) and E3 (costs on fill).

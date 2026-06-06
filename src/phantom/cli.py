@@ -35,13 +35,103 @@ def get_phantom():
     return Phantom(data_dir=os.environ.get("PHANTOM_DATA", "./data"))
 
 
+@account_app.command("create")
+def account_create(
+    name: str = typer.Option(..., "--name", help="Account name"),
+    account_type: str = typer.Option(
+        ..., "--type", help="Account type: pattern/manual/algorithm/aggregate"
+    ),
+    broker: str = typer.Option(..., "--broker", help="Broker profile name"),
+    capital: float = typer.Option(..., "--capital", help="Starting capital"),
+    currency: str = typer.Option("EUR", "--currency", help="Base currency"),
+    pattern: str = typer.Option(None, "--pattern", help="Pattern tag (required for pattern type)"),
+    algorithm_id: str = typer.Option(None, "--algorithm-id", help="Algorithm ID"),
+    algorithm_version: str = typer.Option(None, "--algorithm-version", help="Algorithm version"),
+    children: str = typer.Option(None, "--children", help="Comma-separated child account names"),
+):
+    """Create a new account."""
+    try:
+        from rich.panel import Panel
+
+        ph = get_phantom()
+        child_ids = [c.strip() for c in children.split(",")] if children else None
+        account = ph.accounts.create(
+            name=name,
+            account_type=account_type,
+            broker=broker,
+            capital=capital,
+            currency=currency,
+            pattern_tag=pattern,
+            algorithm_id=algorithm_id,
+            algorithm_version=algorithm_version,
+            child_account_ids=child_ids,
+        )
+        console.print(
+            Panel(
+                f"ID: {account.id}\nType: {account.account_type}\n"
+                f"Broker: {account.broker_profile_id}\n"
+                f"Capital: {account.initial_capital} {account.base_currency}",
+                title=f"Account: {account.name}",
+            )
+        )
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
 @account_app.command("list")
 def account_list():
     """List all accounts."""
     try:
+        from rich.table import Table
+
         ph = get_phantom()
         accounts = ph.accounts.list()
-        console.print(accounts)
+        if not accounts:
+            console.print("No accounts found. Use 'phantom account create' to add one.")
+            return
+        table = Table(title="Accounts")
+        table.add_column("Name")
+        table.add_column("Type")
+        table.add_column("Broker")
+        table.add_column("Initial Capital")
+        table.add_column("Cash")
+        for a in accounts:
+            table.add_row(
+                a.name,
+                a.account_type,
+                a.broker_profile_id,
+                f"{a.initial_capital:.2f} {a.base_currency}",
+                f"{a.cash:.2f} {a.base_currency}",
+            )
+        console.print(table)
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@account_app.command("show")
+def account_show(name: str = typer.Argument(..., help="Account name")):
+    """Show account details."""
+    try:
+        from rich.panel import Panel
+
+        ph = get_phantom()
+        a = ph.accounts.get(name)
+        details = (
+            f"ID: {a.id}\n"
+            f"Type: {a.account_type}\n"
+            f"Broker: {a.broker_profile_id}\n"
+            f"Currency: {a.base_currency}\n"
+            f"Initial Capital: {a.initial_capital:.2f}\n"
+            f"Cash: {a.cash:.2f}\n"
+            f"Created: {a.created_at}"
+        )
+        if a.pattern_tag:
+            details += f"\nPattern: {a.pattern_tag}"
+        if a.algorithm_id:
+            details += f"\nAlgorithm: {a.algorithm_id} {a.algorithm_version or ''}"
+        console.print(Panel(details, title=f"Account: {a.name}"))
     except PhantomError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1)
