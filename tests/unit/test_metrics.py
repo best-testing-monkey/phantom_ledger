@@ -5,9 +5,9 @@ import pytest
 from phantom.errors import ValidationError
 from phantom.reports.metrics import (
     EquityPoint,
+    aggregate_costs,
     calculate_metrics,
     calculate_trade_metrics,
-    aggregate_costs,
 )
 
 
