@@ -1,9 +1,12 @@
+import logging
 import os
 
 from rich.console import Console
 import typer
 
 from phantom.errors import PhantomError
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer(help="Phantom Ledger — paper trading and backtesting engine")
 account_app = typer.Typer(help="Manage accounts")
@@ -958,6 +961,10 @@ def run_paper(
     account: str = typer.Option(..., "--account", help="Account name"),
     interval: int = typer.Option(300, "--interval", help="Interval between ticks in seconds"),
     ticker: str = typer.Option(None, "--ticker", help="Primary ticker to monitor"),
+    mode: str = typer.Option("paper", "--mode", help="paper or backtest"),
+    use_scheduler: bool = typer.Option(
+        False, "--scheduler", help="Use APScheduler instead of blocking loop"
+    ),
 ):
     """Run paper trading (live simulation) for an account."""
     try:
@@ -987,12 +994,65 @@ def run_paper(
         console.print("[yellow]Press Ctrl+C to stop[/yellow]")
 
         try:
-            # Start paper trading
-            ph.runner.paper_trade(
-                account_id=acct.id,
-                tickers=[ticker],
-                interval=interval,
-            )
+            if use_scheduler:
+                # Use APScheduler for market-aware interval-based ticking
+                import sqlite3
+
+                from phantom.config import get_data_dir
+                from phantom.costs.engine import CostEngine
+                from phantom.data.alpaca import LiveProvider
+                from phantom.engine.scheduler import PaperTradeScheduler
+                from phantom.engine.simulation_engine import SimulationEngine
+
+                # Create engine and scheduler
+                db_path = os.path.join(os.environ.get("PHANTOM_DATA", "./data"), "phantom.db")
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+
+                cost_engine = CostEngine(profile)
+                data_provider = LiveProvider(get_data_dir())
+                engine = SimulationEngine(
+                    conn=conn,
+                    data_provider=data_provider,
+                    cost_engine=cost_engine,
+                )
+
+                scheduler = PaperTradeScheduler(
+                    engine=engine,
+                    interval_seconds=interval,
+                    conn=conn,
+                    profile=profile,
+                )
+
+                # Configure scheduler to pass account_id and tickers to run_paper_tick
+                scheduler._account_id = acct.id
+                scheduler._tickers = [ticker]
+
+                # Override _run_tick to pass the account_id and tickers
+                def run_tick_with_context():
+                    if not scheduler._is_market_open():
+                        logger.debug("Market closed, skipping tick")
+                        return
+                    try:
+                        scheduler._engine.run_paper_tick(acct.id, [ticker])
+                        if scheduler._conn:
+                            scheduler._conn.commit()
+                    except Exception as e:
+                        logger.error("Paper trade tick failed: %s", e)
+                        if scheduler._conn:
+                            scheduler._conn.rollback()
+
+                scheduler._run_tick = run_tick_with_context
+
+                # Start scheduler (blocks)
+                scheduler.start()
+            else:
+                # Use traditional blocking paper_trade loop
+                ph.runner.paper_trade(
+                    account_id=acct.id,
+                    tickers=[ticker],
+                    interval=interval,
+                )
         except KeyboardInterrupt:
             console.print("\n[yellow]Shutting down...[/yellow]")
             console.print("[green]Paper trading stopped gracefully.[/green]")

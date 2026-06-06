@@ -245,10 +245,10 @@ Check off each story as it is completed.
 ### E13 · Paper Trade Scheduler
 > Depends on E9-S06 (run_paper loop).
 
-- [ ] E13-S01 — [APScheduler integration: interval trigger](tickets/e13-s01.md)
-- [ ] E13-S02 — [State persistence per tick](tickets/e13-s02.md)
-- [ ] E13-S03 — [Market hours awareness (skip ticks outside hours)](tickets/e13-s03.md)
-- [ ] E13-S04 — [CLI: `phantom run --mode paper --interval 300` (scheduler wiring)](tickets/e13-s04.md)
+- [x] E13-S01 — [APScheduler integration: interval trigger](tickets/e13-s01.md)
+- [x] E13-S02 — [State persistence per tick](tickets/e13-s02.md)
+- [x] E13-S03 — [Market hours awareness (skip ticks outside hours)](tickets/e13-s03.md)
+- [x] E13-S04 — [CLI: `phantom run --mode paper --interval 300` (scheduler wiring)](tickets/e13-s04.md)
 
 ### E17 · Library API Surface (remaining)
 

@@ -524,3 +524,155 @@ class SimulationEngine:
             # Restore signal handlers
             signal.signal(signal.SIGINT, old_sigint)
             signal.signal(signal.SIGTERM, old_sigterm)
+
+    def run_paper_tick(
+        self,
+        account_id: str,
+        tickers: list[str],
+    ) -> None:
+        """Execute a single paper trading tick (used by scheduler).
+
+        Fetches live bars, evaluates orders, updates positions, applies
+        overnight costs, dividends, and margin checks. Does not commit
+        (caller is responsible for transaction management).
+
+        Args:
+            account_id: Account ID to trade
+            tickers: List of tickers to fetch bars for
+        """
+        from phantom.models.broker import BrokerProfile
+
+        account = self._account_repo.get(account_id)
+        profile_row = self._account_repo._conn.execute(
+            "SELECT config_json FROM broker_profiles WHERE id = ?",
+            (account.broker_profile_id,),
+        ).fetchone()
+
+        if profile_row is None:
+            raise ValueError(f"Broker profile not found: {account.broker_profile_id}")
+
+        broker_profile = BrokerProfile.model_validate_json(profile_row[0])
+
+        current_time = datetime.now(timezone.utc)
+        current_time_str = to_iso(current_time)
+        bar_date = current_time_str.split("T")[0]
+
+        ticker = tickers[0] if tickers else None
+        if not ticker:
+            logger.warning("No tickers specified for paper trading")
+            return
+
+        try:
+            # Fetch current bar
+            bar_data = self._data_provider.get_bars(
+                ticker,
+                parse_datetime(bar_date),
+                parse_datetime(bar_date),
+            )
+
+            if bar_data.empty:
+                logger.debug("No bars available for %s on %s", ticker, bar_date)
+                return
+
+            bar = bar_data.iloc[-1]
+
+            # Evaluate pending orders
+            pending = self._order_repo.list_by_account(account_id, status="pending")
+            active, expired = self._order_manager.expire_orders(pending, current_time)
+
+            for exp_order in expired:
+                self._order_repo.update_status(exp_order.id, "expired")
+                logger.info("Order %s expired", exp_order.id)
+
+            new_fills = self._order_manager.evaluate(bar, active)
+            for filled_order in new_fills:
+                filled_order_obj, position = self._order_manager.handle_fill(
+                    filled_order, self._position_repo
+                )
+                logger.info(
+                    "Order %s filled at %.2f",
+                    filled_order_obj.id,
+                    filled_order_obj.fill_price,
+                )
+
+            # Reload account and positions
+            account = self._account_repo.get(account_id)
+            open_positions = self._position_repo.list_by_account(account_id, status="open")
+
+            # Get previous bar date from last equity point if available
+            prev_equity_points = self._equity_repo.list(account_id)
+            prev_bar_date = None
+            if prev_equity_points:
+                prev_timestamp_str = prev_equity_points[-1].timestamp
+                prev_bar_date = prev_timestamp_str.split("T")[0]
+
+            # Apply overnight costs (on day boundary)
+            if prev_bar_date and prev_bar_date != bar_date:
+                self._apply_overnight_costs(
+                    account,
+                    open_positions,
+                    prev_bar_date,
+                    bar_date,
+                    broker_profile,
+                )
+                account = self._account_repo.get(account_id)
+                open_positions = self._position_repo.list_by_account(account_id, status="open")
+
+            # Apply dividends
+            self._apply_dividends(account, open_positions, bar_date, broker_profile)
+            account = self._account_repo.get(account_id)
+            open_positions = self._position_repo.list_by_account(account_id, status="open")
+
+            # Update positions and check TP/SL
+            for position in open_positions:
+                result = self._position_manager.determine_close(position, bar)
+                if result is not None:
+                    exit_price, close_reason = result
+                    closed = self._position_manager.close(
+                        position, exit_price, close_reason, current_time
+                    )
+                    self._position_repo.update(closed)
+
+                    exit_costs = self._cost_engine.exit_costs(
+                        price=exit_price,
+                        quantity=position.quantity,
+                        ticker=position.ticker,
+                        instrument_type=position.instrument_type,
+                    )
+                    cash_return = exit_price * position.quantity - exit_costs.total
+                    account.cash += cash_return
+                    logger.info(
+                        "Position %s closed: %s at %.2f",
+                        position.id,
+                        close_reason,
+                        exit_price,
+                    )
+
+            # Check margin and handle stop-outs
+            open_positions = self._position_repo.list_by_account(account_id, status="open")
+            account = self._account_repo.get(account_id)
+            open_positions = self._check_margin(account, open_positions, broker_profile, bar)
+
+            # Record equity point
+            account = self._account_repo.get(account_id)
+            open_positions = self._position_repo.list_by_account(account_id, status="open")
+            market_value = sum(p.quantity * float(bar["Close"]) for p in open_positions)
+            unrealized = sum(
+                (float(bar["Close"]) - p.entry_price) * p.quantity
+                if p.direction == "long"
+                else (p.entry_price - float(bar["Close"])) * p.quantity
+                for p in open_positions
+            )
+            equity = account.cash + market_value
+            point = EquityPoint(
+                account_id=account_id,
+                timestamp=current_time_str,
+                equity=equity,
+                cash=account.cash,
+                unrealized_pnl=unrealized,
+            )
+            self._equity_repo.create(point)
+
+        except Exception as e:
+            logger.error("Error in paper trading tick: %s", e, exc_info=True)
+            raise

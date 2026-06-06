@@ -177,7 +177,6 @@ class MarginEngine:
         if closed_positions and all(
             p.id in [cp.id for cp in closed_positions] for p in open_positions
         ):
-            final_market_value = 0
             used_margin = 0
             equity = account.cash
             if used_margin == 0:
