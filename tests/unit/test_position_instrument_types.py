@@ -354,7 +354,6 @@ def test_cfd_position_overnight_charges(test_db_conn, broker_profile):
 def test_stock_position_zero_margin_required(test_db_conn, broker_profile):
     """Stock positions should have margin_required=0."""
     account_repo = AccountRepo(test_db_conn)
-    cost_engine = CostEngine(broker_profile)
 
     # Create broker profile in DB first
     broker_id = new_id()
@@ -408,8 +407,6 @@ def test_stock_position_zero_margin_required(test_db_conn, broker_profile):
 def test_cfd_position_margin_required(test_db_conn, broker_profile):
     """CFD positions should have margin_required > 0."""
     account_repo = AccountRepo(test_db_conn)
-    position_repo = PositionRepo(test_db_conn)
-    cost_engine = CostEngine(broker_profile)
 
     # Create broker profile in DB first
     broker_id = new_id()

@@ -13,7 +13,8 @@ class DividendLogRepo:
         """Create a new dividend log entry."""
         self._conn.execute(
             """INSERT INTO dividend_log (
-                id, position_id, account_id, ex_date, dividend_per_share, adjustment_amount, created_at
+                id, position_id, account_id, ex_date, dividend_per_share,
+                adjustment_amount, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (
                 log.id,
