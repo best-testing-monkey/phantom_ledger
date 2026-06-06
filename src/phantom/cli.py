@@ -376,13 +376,113 @@ def position_modify(
         raise typer.Exit(code=1)
 
 
+def _human_bytes(size: int) -> str:
+    if size < 1024:
+        return f"{size} B"
+    elif size < 1024 * 1024:
+        return f"{size / 1024:.1f} KB"
+    return f"{size / (1024 * 1024):.1f} MB"
+
+
+def _open_editor(title: str) -> str | None:
+    from pathlib import Path
+    import subprocess
+    import tempfile
+
+    editor = os.environ.get("EDITOR", "vi")
+    header = f"# {title}\n\n"
+    tmp = tempfile.NamedTemporaryFile(suffix=".md", mode="w", delete=False, encoding="utf-8")
+    try:
+        tmp.write(header)
+        tmp.flush()
+        tmp.close()
+        subprocess.run([editor, tmp.name], check=False)
+        content = Path(tmp.name).read_text(encoding="utf-8")
+        if not content.strip() or content.strip() == header.strip():
+            return None
+        return content
+    finally:
+        Path(tmp.name).unlink(missing_ok=True)
+
+
+@note_app.command("add")
+def note_add(
+    position_id: str = typer.Argument(..., help="Position ULID"),
+    title: str = typer.Option(..., "--title"),
+    file: str = typer.Option(None, "--file"),
+):
+    """Add a note to a position."""
+    try:
+        from rich.panel import Panel
+
+        ph = get_phantom()
+        pos = ph.positions.get(position_id)
+        if file:
+            note = ph.notes.create_from_file(
+                position_id=position_id,
+                account_id=pos.account_id,
+                title=title,
+                source_path=file,
+            )
+        else:
+            content = _open_editor(title)
+            if content is None:
+                console.print("Aborted: note was empty.")
+                return
+            note = ph.notes.create(
+                position_id=position_id,
+                account_id=pos.account_id,
+                title=title,
+                content=content,
+            )
+        console.print(
+            Panel(
+                f"[bold]ID:[/bold] {note.id}\n"
+                f"[bold]Title:[/bold] {note.title}\n"
+                f"[bold]Size:[/bold] {_human_bytes(note.content_size)}\n"
+                f"[bold]Path:[/bold] {note.file_path}",
+                title="Note Created",
+            )
+        )
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
 @note_app.command("list")
-def note_list():
-    """List all notes."""
+def note_list(position_id: str = typer.Argument(..., help="Position ULID")):
+    """List all notes for a position."""
+    try:
+        from rich.table import Table
+
+        ph = get_phantom()
+        ph.positions.get(position_id)
+        notes = ph.notes.list(position_id)
+        if not notes:
+            console.print(f"No notes found for position {position_id}.")
+            return
+        table = Table(title=f"Notes for {position_id[:12]}")
+        table.add_column("Note ID")
+        table.add_column("Title")
+        table.add_column("Size", justify="right")
+        table.add_column("Created At")
+        for note in notes:
+            table.add_row(
+                note.id[:12], note.title, _human_bytes(note.content_size), note.created_at
+            )
+        console.print(table)
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@note_app.command("show")
+def note_show(note_id: str = typer.Argument(..., help="Note ULID")):
+    """Print note content to stdout (pipe-friendly)."""
     try:
         ph = get_phantom()
-        notes = ph.notes.list()
-        console.print(notes)
+        content = ph.notes.read(note_id)
+        print(content, end="")
     except PhantomError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1)
