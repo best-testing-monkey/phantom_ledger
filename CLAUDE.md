@@ -12,7 +12,8 @@ The full architecture spec is in `phantom-ledger-architecture.md`. Read it befor
 
 ```bash
 # Install dependencies (uses uv)
-uv sync
+# NOTE: pytest and ruff are in the optional 'dev' group — use --extra dev or tests won't run
+uv sync --extra dev
 
 # Run all tests
 uv run pytest
@@ -32,6 +33,21 @@ uv run phantom --help
 ```
 
 The `PHANTOM_DATA` env var controls the data directory (default: `./data`).
+
+## Known stubs
+
+- `phantom run backtest` CLI command prints "Backtest not yet implemented". Use `ph.runner.backtest()` from the library API instead.
+- `DataAPI.list()` returns `[]`.
+
+## price_cache submodule
+
+Historical price data is served by the `price_cache` git submodule at `src/phantom/data/price_cache` (`git@github.com:best-testing-monkey/price_cache.git`). After cloning, initialise it with:
+
+```bash
+git submodule update --init --recursive
+```
+
+`HistoricalProvider` calls `price_cache.get_price_data()` in local SQLite mode (db at `$PHANTOM_DATA/yfd_prices.db`). Dividends are extracted from the `Dividends` column of the returned DataFrame — no separate yfinance call.
 
 ## Architecture
 
