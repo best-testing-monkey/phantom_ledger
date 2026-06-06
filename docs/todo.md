@@ -34,11 +34,11 @@ Check off each story as it is completed.
 ### E3 · Cost Engine (MVP)
 > Depends on E2. Needed by E6 (order fills).
 
-- [ ] E3-S01 — [CommissionModel: "fixed" type](tickets/e03-s01.md)
-- [ ] E3-S02 — [SpreadModel: "fixed" and "dynamic" types](tickets/e03-s02.md)
-- [ ] E3-S03 — [SlippageModel: "fixed_pct" type](tickets/e03-s03.md)
-- [ ] E3-S04 — [CostEngine: compose sub-models, entry_costs() / exit_costs() → CostBreakdown](tickets/e03-s04.md)
-- [ ] E3-S05 — [Unit tests: commission, spread, slippage](tickets/e03-s05.md)
+- [x] E3-S01 — [CommissionModel: "fixed" type](tickets/e03-s01.md)
+- [x] E3-S02 — [SpreadModel: "fixed" and "dynamic" types](tickets/e03-s02.md)
+- [x] E3-S03 — [SlippageModel: "fixed_pct" type](tickets/e03-s03.md)
+- [x] E3-S04 — [CostEngine: compose sub-models, entry_costs() / exit_costs() → CostBreakdown](tickets/e03-s04.md)
+- [x] E3-S05 — [Unit tests: commission, spread, slippage](tickets/e03-s05.md)
 
 ---
 

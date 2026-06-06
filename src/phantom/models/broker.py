@@ -12,6 +12,11 @@ class CommissionModel(BaseModel):
     tiers: list[dict[str, Any]] | None = None
     monthly_free_volume: float | None = None
 
+    def calculate(self, quantity: float, price: float, monthly_volume: float) -> float:
+        if self.model_type == "fixed":
+            return self.fixed_fee or 0.0
+        raise NotImplementedError(f"Commission type {self.model_type!r} not implemented")
+
 
 class SpreadModel(BaseModel):
     model_type: Literal["fixed", "dynamic", "market"]
@@ -20,11 +25,41 @@ class SpreadModel(BaseModel):
     volatility_multiplier: float | None = None
     time_of_day_curve: dict[str, float] | None = None
 
+    def calculate(
+        self,
+        price: float,
+        quantity: float,
+        atr: float | None = None,
+        hour_utc: int | None = None,
+    ) -> float:
+        if self.model_type == "fixed":
+            return (self.fixed_spread_pct or 0.0) * price * quantity
+        if self.model_type == "dynamic":
+            base = self.base_spread_pct or 0.0
+            vol_factor = 0.0
+            if atr is not None and price > 0:
+                vol_factor = (self.volatility_multiplier or 0.0) * atr / price
+            time_multiplier = 1.0
+            if hour_utc is not None and self.time_of_day_curve:
+                keys = sorted(int(k) for k in self.time_of_day_curve.keys())
+                chosen = keys[0]
+                for k in keys:
+                    if k <= hour_utc:
+                        chosen = k
+                time_multiplier = self.time_of_day_curve[str(chosen)]
+            return base * time_multiplier * (1 + vol_factor) * price * quantity
+        raise NotImplementedError(f"Spread type {self.model_type!r} not implemented")
+
 
 class SlippageModel(BaseModel):
     model_type: Literal["fixed_pct", "volume_based"]
     fixed_pct: float | None = None
     volume_factor: float | None = None
+
+    def calculate(self, price: float, quantity: float) -> float:
+        if self.model_type == "fixed_pct":
+            return (self.fixed_pct or 0.0) * price * quantity
+        raise NotImplementedError(f"Slippage type {self.model_type!r} not implemented")
 
 
 class OvernightModel(BaseModel):
