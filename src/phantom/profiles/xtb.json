@@ -1,0 +1,62 @@
+{
+    "profile": {
+        "name": "XTB",
+        "min_order_size": 0.01,
+        "max_leverage": 20.0,
+        "supported_instruments": ["stock", "cfd", "etf"],
+        "fx_conversion_pct": 0.001,
+        "fx_base_currency": "USD"
+    },
+    "commission": {
+        "model_type": "zero",
+        "monthly_free_volume": 0.0
+    },
+    "spread": {
+        "model_type": "dynamic",
+        "base_spread_pct": 0.0008,
+        "volatility_multiplier": 0.25,
+        "time_of_day_curve": {
+            "0": 3.0,
+            "8": 1.5,
+            "13": 0.9,
+            "15": 1.2,
+            "20": 2.5
+        }
+    },
+    "slippage": {
+        "model_type": "fixed_pct",
+        "fixed_pct": 0.0003
+    },
+    "overnight": {
+        "long_markup_pct": 0.05,
+        "short_markup_pct": 0.055,
+        "day_divisor": 365,
+        "rate_source": "manual",
+        "manual_rate": 0.04
+    },
+    "margin": {
+        "default_margin_pct": 0.05,
+        "margin_call_level": 1.5,
+        "stop_out_level": 1.0
+    },
+    "dividend": {
+        "cfd_dividend_adjustment": 1.0,
+        "cfd_short_dividend_charge": 1.0,
+        "withholding_rates": {
+            "US": 0.15,
+            "UK": 0.19,
+            "DE": 0.26375,
+            "FR": 0.27,
+            "NL": 0.15,
+            "HK": 0.0,
+            "JP": 0.20
+        }
+    },
+    "trading_hours": {
+        "timezone": "America/New_York",
+        "open": "09:30",
+        "close": "16:00",
+        "pre_market": true,
+        "post_market": true
+    }
+}

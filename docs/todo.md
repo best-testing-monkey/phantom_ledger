@@ -148,9 +148,9 @@ Check off each story as it is completed.
 
 ### E2 · Broker Profiles (remaining)
 
-- [ ] E2-S06 — [IBKR broker profile JSON](tickets/e02-s06.md)
-- [ ] E2-S07 — [XTB broker profile JSON](tickets/e02-s07.md)
-- [ ] E2-S08 — [CLI: `phantom broker validate <file>`](tickets/e02-s08.md)
+- [x] E2-S06 — [IBKR broker profile JSON](tickets/e02-s06.md)
+- [x] E2-S07 — [XTB broker profile JSON](tickets/e02-s07.md)
+- [x] E2-S08 — [CLI: `phantom broker validate <file>`](tickets/e02-s08.md)
 
 ### E3 · Cost Engine (full)
 > Adds overnight, FX, dividends. Needed by E9-S09/S10 hooks.

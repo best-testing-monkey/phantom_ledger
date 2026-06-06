@@ -649,6 +649,25 @@ def broker_show(name: str = typer.Argument(..., help="Broker profile name")):
         raise typer.Exit(code=1)
 
 
+@broker_app.command("validate")
+def broker_validate(path: str = typer.Argument(..., help="Path to broker profile JSON file")):
+    """Validate a broker profile JSON file."""
+    try:
+        from rich.panel import Panel
+
+        ph = get_phantom()
+        p = ph.brokers.validate(path)
+        summary = (
+            f"Name: {p.name}\n"
+            f"Instruments: {', '.join(p.supported_instruments)}\n"
+            f"Commission Type: {p.commission.model_type}"
+        )
+        console.print(Panel(summary, title="Profile Valid"))
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
 @run_app.command("backtest")
 def run_backtest():
     """Run a backtest."""
