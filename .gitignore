@@ -33,4 +33,4 @@ env/
 .coverage
 htmlcov/
 .mypy_cache/
-data/
+/data/

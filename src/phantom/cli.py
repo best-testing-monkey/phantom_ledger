@@ -137,6 +137,40 @@ def account_show(name: str = typer.Argument(..., help="Account name")):
         raise typer.Exit(code=1)
 
 
+@account_app.command("delete")
+def account_delete(
+    name: str = typer.Argument(..., help="Account name"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+):
+    """Delete an account and all its positions."""
+    try:
+        ph = get_phantom()
+        a = ph.accounts.get(name)
+
+        # Check for open positions
+        positions = ph.positions.list(account_name=name)
+        open_positions = [p for p in positions if p.status == "open"]
+
+        # Show warning if account has open positions
+        if open_positions:
+            console.print(
+                f"[yellow]Warning:[/yellow] This account has {len(open_positions)} open "
+                f"position(s) that will also be deleted."
+            )
+
+        # Show confirmation prompt if not using --yes flag
+        if not yes:
+            typer.confirm(f"Are you sure you want to delete account '{name}'?", abort=True)
+
+        # Perform deletion
+        ph.accounts.delete(a.id)
+        console.print(f"[green]Account '{name}' deleted successfully.[/green]")
+
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
 @order_app.command("place")
 def order_place(
     account: str = typer.Option(..., "--account"),

@@ -176,10 +176,10 @@ Check off each story as it is completed.
 
 ### E5 · Account System (remaining)
 
-- [ ] E5-S05 — [Aggregate account computation (sum child equity curves)](tickets/e05-s05.md)
-- [ ] E5-S06 — [Account-level margin tracking (used_margin, free_margin, margin_level)](tickets/e05-s06.md)
-- [ ] E5-S07 — [Validation: reject CFD/short on non-CFD broker profiles](tickets/e05-s07.md)
-- [ ] E5-S08 — [CLI: `phantom account delete` with confirmation + cascade warning](tickets/e05-s08.md)
+- [x] E5-S05 — [Aggregate account computation (sum child equity curves)](tickets/e05-s05.md)
+- [x] E5-S06 — [Account-level margin tracking (used_margin, free_margin, margin_level)](tickets/e05-s06.md)
+- [x] E5-S07 — [Validation: reject CFD/short on non-CFD broker profiles](tickets/e05-s07.md)
+- [x] E5-S08 — [CLI: `phantom account delete` with confirmation + cascade warning](tickets/e05-s08.md)
 
 ### E6 · Order System (remaining)
 

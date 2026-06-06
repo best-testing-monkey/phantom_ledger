@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 
 from pydantic import BaseModel, Field
@@ -5,6 +6,16 @@ from pydantic import BaseModel, Field
 from phantom.models.types import AccountType
 from phantom.utils.datetime import now_utc
 from phantom.utils.ids import new_id
+
+
+@dataclass(frozen=True)
+class MarginSummary:
+    """Account-level margin tracking snapshot."""
+
+    used_margin: float
+    free_margin: float
+    equity: float
+    margin_level: float
 
 
 class Account(BaseModel):

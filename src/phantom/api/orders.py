@@ -23,6 +23,18 @@ class OrderAPI:
         return OrderManager(self._order_repo, self._account_repo, cost_engine)
 
     def place(self, account_id: str, order: Order) -> Order:
+        # Validate CFD/short instrument support
+        account = self._account_repo.get(account_id)
+        profile = self._broker_repo.get(account.broker_profile_id)
+
+        # Check if trying to trade CFD on a broker that doesn't support it
+        if order.instrument_type == "cfd" and "cfd" not in profile.supported_instruments:
+            raise ValidationError(f"Broker {profile.name} does not support instrument type: cfd")
+
+        # Check if trying to short on a broker that only supports stocks
+        if order.direction == "short" and "cfd" not in profile.supported_instruments:
+            raise ValidationError(f"Broker {profile.name} does not support short positions")
+
         manager = self._get_manager(account_id)
         return manager.place(account_id, order)
 
