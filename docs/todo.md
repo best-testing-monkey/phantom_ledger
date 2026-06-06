@@ -107,12 +107,12 @@ Check off each story as it is completed.
 ### E11 · Trade Notes
 > Depends on E1 only (filesystem + DB). Can be done in parallel with E4–E10.
 
-- [ ] E11-S01 — [NoteManager: create file + metadata row](tickets/e11-s01.md)
-- [ ] E11-S02 — [Note creation from file](tickets/e11-s02.md)
-- [ ] E11-S03 — [Note creation via $EDITOR](tickets/e11-s03.md)
-- [ ] E11-S04 — [CLI: `phantom note list`](tickets/e11-s04.md)
-- [ ] E11-S05 — [CLI: `phantom note show`](tickets/e11-s05.md)
-- [ ] E11-S06 — [Note size tracking](tickets/e11-s06.md)
+- [x] E11-S01 — [NoteManager: create file + metadata row](tickets/e11-s01.md)
+- [x] E11-S02 — [Note creation from file](tickets/e11-s02.md)
+- [x] E11-S03 — [Note creation via $EDITOR](tickets/e11-s03.md)
+- [x] E11-S04 — [CLI: `phantom note list`](tickets/e11-s04.md)
+- [x] E11-S05 — [CLI: `phantom note show`](tickets/e11-s05.md)
+- [x] E11-S06 — [Note size tracking](tickets/e11-s06.md)
 
 ---
 
