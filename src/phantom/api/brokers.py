@@ -13,6 +13,11 @@ class BrokerAPI:
         profile = load_profile(path)
         return self._repo.create(profile)
 
+    def create_from_dict(self, data: dict) -> BrokerProfile:
+        """Create a broker profile from a dictionary."""
+        profile = BrokerProfile(**data)
+        return self._repo.create(profile)
+
     def list(self) -> list[BrokerProfile]:
         return self._repo.list()
 

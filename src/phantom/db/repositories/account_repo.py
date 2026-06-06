@@ -16,8 +16,8 @@ class AccountRepo:
                 id, name, account_type, broker_profile_id, base_currency,
                 initial_capital, cash, created_at,
                 pattern_tag, algorithm_id, algorithm_version,
-                algorithm_params, child_account_ids
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                algorithm_params, child_account_ids, margin_call_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 account.id,
                 account.name,
@@ -36,6 +36,7 @@ class AccountRepo:
                 json.dumps(account.child_account_ids)
                 if account.child_account_ids is not None
                 else None,
+                account.margin_call_at.isoformat() if account.margin_call_at is not None else None,
             ),
         )
         self._conn.commit()
@@ -68,7 +69,8 @@ class AccountRepo:
             """UPDATE accounts SET
                 name=?, account_type=?, broker_profile_id=?, base_currency=?,
                 initial_capital=?, cash=?, pattern_tag=?, algorithm_id=?,
-                algorithm_version=?, algorithm_params=?, child_account_ids=?
+                algorithm_version=?, algorithm_params=?, child_account_ids=?,
+                margin_call_at=?
             WHERE id=?""",
             (
                 account.name,
@@ -86,6 +88,7 @@ class AccountRepo:
                 json.dumps(account.child_account_ids)
                 if account.child_account_ids is not None
                 else None,
+                account.margin_call_at.isoformat() if account.margin_call_at is not None else None,
                 account.id,
             ),
         )
@@ -107,4 +110,6 @@ class AccountRepo:
         if d.get("child_account_ids"):
             d["child_account_ids"] = json.loads(d["child_account_ids"])
         d["created_at"] = parse_datetime(d["created_at"])
+        if d.get("margin_call_at"):
+            d["margin_call_at"] = parse_datetime(d["margin_call_at"])
         return Account(**d)

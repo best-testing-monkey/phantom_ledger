@@ -60,7 +60,8 @@ def test_db_conn():
             algorithm_id TEXT,
             algorithm_version TEXT,
             algorithm_params TEXT,
-            child_account_ids TEXT
+            child_account_ids TEXT,
+            margin_call_at TEXT
         )
     """)
 

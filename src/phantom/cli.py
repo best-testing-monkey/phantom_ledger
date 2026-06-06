@@ -131,6 +131,35 @@ def account_show(name: str = typer.Argument(..., help="Account name")):
             details += f"\nPattern: {a.pattern_tag}"
         if a.algorithm_id:
             details += f"\nAlgorithm: {a.algorithm_id} {a.algorithm_version or ''}"
+
+        # Try to get margin summary for CFD accounts
+        try:
+            margin_summary = ph.accounts.get_margin_summary(name)
+            if margin_summary.used_margin > 0:
+                details += "\n\n[bold]Margin[/bold]"
+                # Format margin level with color
+                if margin_summary.margin_level == float("inf"):
+                    margin_level_str = "∞"
+                else:
+                    margin_level_str = f"{margin_summary.margin_level:.1f}%"
+                    # Color based on level
+                    if margin_summary.margin_level > 150.0:
+                        margin_level_str = f"[green]{margin_level_str}[/green]"
+                    elif margin_summary.margin_level > 50.0:
+                        margin_level_str = f"[yellow]{margin_level_str}[/yellow]"
+                    else:
+                        margin_level_str = f"[red]{margin_level_str}[/red]"
+
+                details += (
+                    f"\nMargin Level: {margin_level_str}\n"
+                    f"Used Margin: {margin_summary.used_margin:.2f}\n"
+                    f"Free Margin: {margin_summary.free_margin:.2f}\n"
+                    f"Equity: {margin_summary.equity:.2f}"
+                )
+        except Exception:
+            # No margin data available
+            pass
+
         console.print(Panel(details, title=f"Account: {a.name}"))
     except PhantomError as e:
         console.print(f"[red]Error:[/red] {e}")
@@ -304,6 +333,10 @@ def position_list(
         if not positions:
             console.print("No positions found.")
             return
+
+        # Check if any position is CFD (needs margin requirement column)
+        has_cfd = any(p.instrument_type == "cfd" for p in positions)
+
         table = Table(title="Positions")
         table.add_column("ID")
         table.add_column("Symbol")
@@ -311,17 +344,22 @@ def position_list(
         table.add_column("Qty", justify="right")
         table.add_column("Entry", justify="right")
         table.add_column("Duration")
+        if has_cfd:
+            table.add_column("Margin Req.", justify="right")
         table.add_column("Status")
         for p in positions:
-            table.add_row(
+            row_data = [
                 p.id[:8],
                 p.ticker,
                 p.direction,
                 str(p.quantity),
                 f"{p.entry_price:.4f}",
                 _format_duration(p.entry_datetime),
-                p.status,
-            )
+            ]
+            if has_cfd:
+                row_data.append(f"{p.margin_required:.2f}")
+            row_data.append(p.status)
+            table.add_row(*row_data)
         console.print(table)
     except PhantomError as e:
         console.print(f"[red]Error:[/red] {e}")

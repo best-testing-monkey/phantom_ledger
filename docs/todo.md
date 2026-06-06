@@ -203,11 +203,11 @@ Check off each story as it is completed.
 ### E8 · Margin Engine
 > Depends on E7-S15 (per-position margin). Needed by E9-S11 and E10-S07.
 
-- [ ] E8-S01 — [MarginEngine.check(): margin_level, return ok/margin_call/stop_out](tickets/e08-s01.md)
-- [ ] E8-S02 — [Margin call warning: log, flag, persist timestamp](tickets/e08-s02.md)
-- [ ] E8-S03 — [Stop-out cascade: force-close largest loser until recovered](tickets/e08-s03.md)
-- [ ] E8-S04 — [Integration test: CFD stop-out cascade](tickets/e08-s04.md)
-- [ ] E8-S05 — [Margin level display in `account show` and `position list`](tickets/e08-s05.md)
+- [x] E8-S01 — [MarginEngine.check(): margin_level, return ok/margin_call/stop_out](tickets/e08-s01.md)
+- [x] E8-S02 — [Margin call warning: log, flag, persist timestamp](tickets/e08-s02.md)
+- [x] E8-S03 — [Stop-out cascade: force-close largest loser until recovered](tickets/e08-s03.md)
+- [x] E8-S04 — [Integration test: CFD stop-out cascade](tickets/e08-s04.md)
+- [x] E8-S05 — [Margin level display in `account show` and `position list`](tickets/e08-s05.md)
 
 ### E9 · Simulation Engine (remaining)
 > Depends on E8 (margin hook), E3-S10 (overnight), E4-S05/S06 (dividends/rates).

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 from phantom.models.types import CloseReason, Direction, InstrumentType, PositionStatus
 from phantom.utils.datetime import now_utc
@@ -51,3 +51,13 @@ class Position(BaseModel):
     pattern_tag: str | None = None
     replay_completed_at: str | None = None
     created_at: datetime = Field(default_factory=now_utc)
+
+    @computed_field
+    @property
+    def unrealized_pnl(self) -> float:
+        """Compute unrealized P&L (positive for profit, negative for loss)."""
+        if self.status != "open":
+            return 0.0
+        # Placeholder: in real usage, this needs a current price
+        # For now, return 0 as a default
+        return 0.0

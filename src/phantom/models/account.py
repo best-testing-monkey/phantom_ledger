@@ -32,3 +32,4 @@ class Account(BaseModel):
     algorithm_version: str | None = None
     algorithm_params: dict | None = None
     child_account_ids: list[str] | None = None
+    margin_call_at: datetime | None = None
