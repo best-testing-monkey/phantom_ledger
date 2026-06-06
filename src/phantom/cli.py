@@ -560,16 +560,88 @@ def note_show(note_id: str = typer.Argument(..., help="Note ULID")):
         raise typer.Exit(code=1)
 
 
+@note_app.command("edit")
+def note_edit(note_id: str = typer.Argument(..., help="Note ULID")):
+    """Edit a note in $EDITOR."""
+    try:
+        from pathlib import Path
+        import subprocess
+        import tempfile
+
+        ph = get_phantom()
+        old_content = ph.notes.read(note_id)
+        editor = os.environ.get("EDITOR", "vi")
+        tmp = tempfile.NamedTemporaryFile(suffix=".md", mode="w", delete=False, encoding="utf-8")
+        try:
+            tmp.write(old_content)
+            tmp.flush()
+            tmp.close()
+            subprocess.run([editor, tmp.name], check=False)
+            new_content = Path(tmp.name).read_text(encoding="utf-8")
+            if new_content == old_content:
+                console.print("No changes made.")
+                return
+            updated = ph.notes.update(note_id, new_content)
+            size_str = _human_bytes(updated.content_size)
+            console.print(f"[green]Note {note_id[:12]} updated ({size_str}).[/green]")
+        finally:
+            Path(tmp.name).unlink(missing_ok=True)
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@note_app.command("search")
+def note_search(
+    account_name: str = typer.Argument(..., help="Account name"),
+    keyword: str = typer.Argument(..., help="Keyword to search for"),
+):
+    """Search for keyword in all notes for an account."""
+    try:
+        from rich.table import Table
+
+        ph = get_phantom()
+        acc = ph.accounts.get(account_name)
+        results = ph.notes.search(acc.id, keyword)
+        if not results:
+            console.print(f"No notes found matching '{keyword}'.")
+            return
+
+        table = Table(title=f"Search results for '{keyword}'")
+        table.add_column("File Path")
+        table.add_column("Line", justify="right")
+        table.add_column("Match")
+        for result in results:
+            highlighted = result.line.replace(keyword, f"[bold yellow]{keyword}[/bold yellow]")
+            table.add_row(result.file_path, str(result.line_number), highlighted)
+        console.print(table)
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
 @report_app.command("show")
-def report_show(account: str = typer.Option(..., "--account")):
+def report_show(
+    account: str = typer.Option(..., "--account"),
+    pattern: str = typer.Option(None, "--pattern", help="Filter by pattern tag"),
+    algo_version: str = typer.Option(None, "--algo-version", help="Filter by algorithm version"),
+    aggregate: bool = typer.Option(False, "--aggregate", help="Aggregate child account report"),
+    compare_brokers: str = typer.Option(
+        None, "--compare-brokers", help="Comma-separated broker names"
+    ),
+    export_csv: str = typer.Option(None, "--export-csv", help="Export equity curve to CSV"),
+):
     """Display performance and cost report for an account."""
     try:
         from rich.panel import Panel
         from rich.table import Table
 
+        from phantom.reports.cost_comparison import compare_broker_costs
+        from phantom.reports.exporters import export_equity_csv
         from phantom.reports.metrics import (
             EquityPoint,
             aggregate_costs,
+            build_aggregate_curve,
             calculate_metrics,
             calculate_trade_metrics,
         )
@@ -577,18 +649,56 @@ def report_show(account: str = typer.Option(..., "--account")):
         ph = get_phantom()
 
         acc = ph.accounts.get(account)
-        positions = ph.positions.list(account_name=account)
-        closed = sorted(
-            [p for p in positions if p.status == "closed" and p.exit_datetime is not None],
-            key=lambda p: p.exit_datetime,
-        )
 
-        # Build equity curve
-        equity = acc.initial_capital
-        curve = []
-        for pos in closed:
-            equity += pos.realized_pnl or 0.0
-            curve.append(EquityPoint(timestamp=pos.exit_datetime, equity=equity))
+        # Handle aggregate reporting
+        if aggregate:
+            if acc.child_account_ids:
+                is_str = isinstance(acc.child_account_ids, str)
+                child_ids = acc.child_account_ids.split(",") if is_str else acc.child_account_ids
+                children = [ph.accounts.get(cid.strip()) for cid in child_ids if cid.strip()]
+                all_positions = []
+                for child in children:
+                    all_positions.extend(ph.positions.list(account_name=child.name))
+                curve = build_aggregate_curve(children, all_positions)
+                n_children = len(children)
+                report_title = f"Aggregate report for {account} ({n_children} child accounts)"
+                positions = all_positions
+            else:
+                msg = f"[yellow]Notice:[/yellow] Account '{account}' has no child accounts."
+                console.print(msg)
+                return
+        else:
+            # Apply filters
+            positions = ph.positions.list(
+                account_name=account,
+                pattern_tag=pattern,
+                algorithm_version=algo_version,
+            )
+            if pattern or algo_version:
+                if not positions:
+                    console.print(
+                        "[yellow]Notice:[/yellow] No positions found matching the filters."
+                    )
+                    return
+                report_title = f"Performance — {account}"
+                if pattern:
+                    report_title += f" (Pattern: {pattern})"
+                if algo_version:
+                    report_title += f" (Algo: {algo_version})"
+            else:
+                report_title = f"Performance — {account}"
+
+            closed = sorted(
+                [p for p in positions if p.status == "closed" and p.exit_datetime is not None],
+                key=lambda p: p.exit_datetime,
+            )
+
+            # Build equity curve
+            equity = acc.initial_capital
+            curve = []
+            for pos in closed:
+                equity += pos.realized_pnl or 0.0
+                curve.append(EquityPoint(timestamp=pos.exit_datetime, equity=equity))
 
         # Performance panel
         perf_table = Table(show_header=False, box=None)
@@ -601,12 +711,20 @@ def report_show(account: str = typer.Option(..., "--account")):
             perf_table.add_row("CAGR", f"{em.cagr_pct:.2f}%")
             perf_table.add_row("Max Drawdown", f"{em.max_drawdown_pct:.2f}%")
             perf_table.add_row("Max DD Duration", f"{em.max_drawdown_duration_days} days")
+            perf_table.add_row("Sharpe Ratio", f"{em.sharpe_ratio:.2f}")
+            perf_table.add_row(
+                "Sortino Ratio",
+                f"{em.sortino_ratio:.2f}" if em.sortino_ratio != float("inf") else "∞",
+            )
         else:
             console.print(
                 "[yellow]Notice:[/yellow] Fewer than 2 closed positions — equity metrics skipped."
             )
 
-        if closed:
+        closed_positions = [
+            p for p in positions if p.status == "closed" and p.exit_datetime is not None
+        ]
+        if closed_positions:
             tm = calculate_trade_metrics(positions)
             perf_table.add_row("Trade Count", str(tm.trade_count))
             perf_table.add_row("Win Rate", f"{tm.win_rate_pct:.1f}%")
@@ -632,8 +750,60 @@ def report_show(account: str = typer.Option(..., "--account")):
         cost_table.add_row("─" * 10, "─" * 10)
         cost_table.add_row("Total", f"{cs.total_cost:.4f}")
 
-        console.print(Panel(perf_table, title=f"Performance — {account}"))
+        console.print(Panel(perf_table, title=report_title))
         console.print(Panel(cost_table, title="Cost Breakdown"))
+
+        # Broker cost comparison
+        if compare_brokers:
+            broker_names = [b.strip() for b in compare_brokers.split(",")]
+            try:
+                cost_comparison = compare_broker_costs(
+                    positions, broker_names, lambda name: ph.brokers.get(name)
+                )
+                comparison_table = Table(title="Broker Cost Comparison")
+                comparison_table.add_column("Cost Type", style="bold")
+                for broker_name in broker_names:
+                    comparison_table.add_column(broker_name, justify="right")
+
+                cost_types = [
+                    "Commission",
+                    "Spread",
+                    "Slippage",
+                    "Overnight",
+                    "FX",
+                    "Dividends",
+                    "Total",
+                ]
+                for cost_type in cost_types:
+                    row = [cost_type]
+                    for broker_name in broker_names:
+                        cost_summary = cost_comparison[broker_name]
+                        if cost_type == "Commission":
+                            row.append(f"{cost_summary.total_commission:.4f}")
+                        elif cost_type == "Spread":
+                            row.append(f"{cost_summary.total_spread:.4f}")
+                        elif cost_type == "Slippage":
+                            row.append(f"{cost_summary.total_slippage:.4f}")
+                        elif cost_type == "Overnight":
+                            row.append(f"{cost_summary.total_overnight:.4f}")
+                        elif cost_type == "FX":
+                            row.append(f"{cost_summary.total_fx:.4f}")
+                        elif cost_type == "Dividends":
+                            row.append(f"{cost_summary.total_dividends:.4f}")
+                        elif cost_type == "Total":
+                            row.append(f"[bold]{cost_summary.total_cost:.4f}[/bold]")
+                    comparison_table.add_row(*row)
+                console.print(comparison_table)
+            except PhantomError as e:
+                console.print(f"[yellow]Warning:[/yellow] Broker comparison failed: {e}")
+
+        # Export equity curve to CSV
+        if export_csv:
+            try:
+                count = export_equity_csv(curve, export_csv)
+                console.print(f"[green]Exported {count} rows to {export_csv}[/green]")
+            except Exception as e:
+                console.print(f"[yellow]Warning:[/yellow] CSV export failed: {e}")
 
     except PhantomError as e:
         console.print(f"[red]Error:[/red] {e}")

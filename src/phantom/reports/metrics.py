@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
+import statistics
 
 from pydantic import BaseModel
 
@@ -17,6 +20,8 @@ class EquityMetrics(BaseModel, frozen=True):
     cagr_pct: float
     max_drawdown_pct: float
     max_drawdown_duration_days: int
+    sharpe_ratio: float = 0.0
+    sortino_ratio: float = 0.0
 
 
 class TradeMetrics(BaseModel, frozen=True):
@@ -42,7 +47,71 @@ class CostSummary(BaseModel, frozen=True):
     total_cost: float = 0.0
 
 
-def calculate_metrics(equity_curve: list[EquityPoint]) -> EquityMetrics:
+def _daily_returns(curve: list[EquityPoint]) -> list[float]:
+    """Resample equity curve to daily (last equity per day) and compute returns."""
+    if len(curve) < 2:
+        return []
+
+    daily_equity = {}
+    for pt in curve:
+        date_key = pt.timestamp.date()
+        daily_equity[date_key] = pt.equity
+
+    sorted_dates = sorted(daily_equity.keys())
+    if len(sorted_dates) < 2:
+        return []
+
+    returns = []
+    for i in range(1, len(sorted_dates)):
+        prev_equity = daily_equity[sorted_dates[i - 1]]
+        curr_equity = daily_equity[sorted_dates[i]]
+        ret = (curr_equity / prev_equity) - 1
+        returns.append(ret)
+
+    return returns
+
+
+def _sharpe(returns: list[float], rfr: float = 0.0) -> float:
+    """Calculate annualized Sharpe ratio. Returns 0.0 if std==0 or < 2 returns."""
+    if len(returns) < 2:
+        return 0.0
+
+    mean_ret = statistics.mean(returns)
+    try:
+        std_ret = statistics.stdev(returns)
+    except statistics.StatisticsError:
+        return 0.0
+
+    if std_ret == 0:
+        return 0.0
+
+    excess_return = mean_ret - rfr / 252
+    return excess_return / std_ret * (252**0.5)
+
+
+def _sortino(returns: list[float], rfr: float = 0.0) -> float:
+    """Calculate annualized Sortino ratio using downside deviation. Returns inf if no downside."""
+    if len(returns) < 2:
+        return 0.0
+
+    mean_ret = statistics.mean(returns)
+    threshold = rfr / 252
+    downside_returns = [r for r in returns if r < threshold]
+
+    if not downside_returns:
+        return float("inf")
+
+    downside_dev = (statistics.mean([r**2 for r in downside_returns])) ** 0.5
+    if downside_dev == 0:
+        return float("inf")
+
+    excess_return = mean_ret - threshold
+    return excess_return / downside_dev * (252**0.5)
+
+
+def calculate_metrics(
+    equity_curve: list[EquityPoint], risk_free_rate: float = 0.0
+) -> EquityMetrics:
     if len(equity_curve) < 2:
         raise ValidationError("Equity curve too short to compute metrics")
     initial = equity_curve[0].equity
@@ -63,11 +132,18 @@ def calculate_metrics(equity_curve: list[EquityPoint]) -> EquityMetrics:
         dd_days = (pt.timestamp - peak_ts).days
         max_dd = max(max_dd, dd)
         max_dd_days = max(max_dd_days, dd_days)
+
+    returns = _daily_returns(equity_curve)
+    sharpe = _sharpe(returns, risk_free_rate)
+    sortino = _sortino(returns, risk_free_rate)
+
     return EquityMetrics(
         total_return_pct=total_return,
         cagr_pct=cagr,
         max_drawdown_pct=max_dd,
         max_drawdown_duration_days=max_dd_days,
+        sharpe_ratio=sharpe,
+        sortino_ratio=sortino,
     )
 
 
@@ -98,6 +174,24 @@ def calculate_trade_metrics(positions) -> TradeMetrics:
         profit_factor=profit_factor,
         expectancy=expectancy,
     )
+
+
+def build_aggregate_curve(child_accounts: list, all_positions: list[any]) -> list[EquityPoint]:
+    """Build an aggregate equity curve from child accounts and their positions."""
+    starting_equity = sum(acc.initial_capital for acc in child_accounts)
+
+    closed_positions = [
+        p for p in all_positions if p.status == "closed" and p.exit_datetime is not None
+    ]
+    closed_positions.sort(key=lambda p: p.exit_datetime)
+
+    curve = []
+    equity = starting_equity
+    for pos in closed_positions:
+        equity += pos.realized_pnl or 0.0
+        curve.append(EquityPoint(timestamp=pos.exit_datetime, equity=equity))
+
+    return curve
 
 
 def aggregate_costs(positions) -> CostSummary:

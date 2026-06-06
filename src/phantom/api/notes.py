@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 from pathlib import Path
 import sqlite3
 
 from phantom.db.repositories.note_repo import NoteRepo
 from phantom.models.note import Note
-from phantom.notes.manager import NoteManager
+from phantom.notes.manager import NoteManager, SearchResult
 
 
 class NoteAPI:
@@ -28,3 +30,9 @@ class NoteAPI:
 
     def get(self, note_id: str) -> Note:
         return self._repo.get(note_id)
+
+    def update(self, note_id: str, content: str) -> Note:
+        return self._manager.update(note_id, content)
+
+    def search(self, account_id: str, keyword: str) -> list[SearchResult]:
+        return self._manager.search(account_id, keyword)

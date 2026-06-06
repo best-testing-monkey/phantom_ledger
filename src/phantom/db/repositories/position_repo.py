@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 import sqlite3
 
@@ -13,7 +15,7 @@ class PositionRepo:
         self._conn = conn
 
     def create(self, position: Position) -> Position:
-        placeholders = ", ".join("?" * 38)
+        placeholders = ", ".join("?" * 39)
         self._conn.execute(
             f"""INSERT INTO positions (
                 id, account_id, ticker, instrument_type, direction,
@@ -25,7 +27,7 @@ class PositionRepo:
                 dividend_adjustments, fx_conversion_cost, country_code,
                 margin_required, leverage,
                 exit_price, exit_datetime, realized_pnl, status, close_reason,
-                pattern_tag, replay_completed_at, created_at
+                pattern_tag, algorithm_version, replay_completed_at, created_at
             ) VALUES ({placeholders})""",
             (
                 position.id,
@@ -64,6 +66,7 @@ class PositionRepo:
                 position.status,
                 position.close_reason,
                 position.pattern_tag,
+                position.algorithm_version,
                 position.replay_completed_at,
                 position.created_at.isoformat(),
             ),
@@ -83,6 +86,8 @@ class PositionRepo:
         status: str | None = None,
         ticker: str | None = None,
         replay_completed_at=_UNSET,
+        pattern_tag: str | None = None,
+        algorithm_version: str | None = None,
     ) -> list[Position]:
         query = "SELECT * FROM positions WHERE account_id = ?"
         params = [account_id]
@@ -94,6 +99,12 @@ class PositionRepo:
             params.append(ticker)
         if replay_completed_at is None:
             query += " AND replay_completed_at IS NULL"
+        if pattern_tag:
+            query += " AND pattern_tag = ?"
+            params.append(pattern_tag)
+        if algorithm_version:
+            query += " AND algorithm_version = ?"
+            params.append(algorithm_version)
         query += " ORDER BY entry_datetime"
         rows = self._conn.execute(query, params).fetchall()
         return [self._row_to_model(r) for r in rows]

@@ -130,6 +130,7 @@ def test_db_conn():
             status TEXT NOT NULL,
             close_reason TEXT,
             pattern_tag TEXT,
+            algorithm_version TEXT,
             replay_completed_at TEXT,
             created_at TEXT NOT NULL
         )

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sqlite3
 
 from phantom.costs.engine import CostEngine
@@ -22,11 +24,17 @@ class PositionAPI:
         account_name: str | None = None,
         status: str | None = None,
         replay_completed_at=...,
+        pattern_tag: str | None = None,
+        algorithm_version: str | None = None,
     ) -> list[Position]:
         if account_name:
             account = self._account_repo.get_by_name(account_name)
             return self._position_repo.list_by_account(
-                account.id, status=status, replay_completed_at=replay_completed_at
+                account.id,
+                status=status,
+                replay_completed_at=replay_completed_at,
+                pattern_tag=pattern_tag,
+                algorithm_version=algorithm_version,
             )
         return self._position_repo.list_open_all()
 
