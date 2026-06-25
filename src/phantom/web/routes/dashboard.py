@@ -20,6 +20,7 @@ async def dashboard(request: Request, account: str | None = None):
                 name="dashboard.html",
                 context={
                     "account": None,
+                    "accounts": accounts,
                     "positions": [],
                     "recent_trades": [],
                     "no_accounts": True,
@@ -38,6 +39,7 @@ async def dashboard(request: Request, account: str | None = None):
                     name="dashboard.html",
                     context={
                         "account": None,
+                        "accounts": accounts,
                         "positions": [],
                         "recent_trades": [],
                         "error": f"Account {account} not found",
@@ -60,6 +62,7 @@ async def dashboard(request: Request, account: str | None = None):
             name="dashboard.html",
             context={
                 "account": account_obj,
+                "accounts": accounts,
                 "positions": positions,
                 "recent_trades": recent_trades,
                 "total_unrealized": total_unrealized,
@@ -73,6 +76,7 @@ async def dashboard(request: Request, account: str | None = None):
             name="dashboard.html",
             context={
                 "account": None,
+                "accounts": [],
                 "positions": [],
                 "recent_trades": [],
                 "error": str(e),
