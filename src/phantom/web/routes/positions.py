@@ -75,11 +75,14 @@ async def close_position(
     position_id: str,
     exit_price: float = Form(...),
     account: str = Form(...),
+    quantity: float = Form(...),
 ):
     """Close an open position."""
     try:
         ph = get_phantom()
-        ph.positions.close(position_id, close_reason="manual", exit_price=exit_price)
+        ph.positions.close(
+            position_id, close_reason="manual", exit_price=exit_price, quantity=quantity
+        )
         return RedirectResponse(url=f"/?account={account}", status_code=303)
     except PhantomError as e:
         position = ph.positions.get(position_id)

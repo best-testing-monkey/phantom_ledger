@@ -81,6 +81,11 @@
             <form method="post" action="/positions/{{ position.id }}/close" style="display:flex;gap:1rem;align-items:flex-end;">
                 <input type="hidden" name="account" value="{{ account.name if account else '' }}">
                 <div style="flex:1;">
+                    <label>Quantity to Close</label>
+                    <input type="number" name="quantity" step="0.0001" min="0.0001"
+                           value="{{ position.quantity }}" required style="margin-bottom:0;">
+                </div>
+                <div style="flex:1;">
                     <label>Exit Price</label>
                     <input type="number" name="exit_price" step="0.0001" min="0.0001" required
                            placeholder="e.g. 150.25" style="margin-bottom:0;">

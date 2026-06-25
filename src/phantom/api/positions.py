@@ -46,37 +46,80 @@ class PositionAPI:
         return self._position_repo.get(position_id)
 
     def close(
-        self, position_id: str, close_reason: str = "manual", exit_price: float | None = None
+        self,
+        position_id: str,
+        close_reason: str = "manual",
+        exit_price: float | None = None,
+        quantity: float | None = None,
     ) -> Position:
         with self._lock:
             position = self._position_repo.get(position_id)
             if position.status != "open":
                 raise ValidationError(f"Position {position_id} is already {position.status}")
 
-            account = self._account_repo.get(position.account_id)
-            profile = self._broker_repo.get(account.broker_profile_id)
-            cost_engine = CostEngine(profile)
-            manager = PositionManager(self._position_repo, self._account_repo, cost_engine)
-
             if exit_price is None:
                 raise ValidationError("exit_price is required")
 
-            closed = manager.close(position, exit_price, close_reason, now_utc())
+            # Validate and default quantity
+            if quantity is None:
+                quantity = position.quantity
+            if quantity <= 0:
+                raise ValidationError("Quantity must be greater than zero")
+            if quantity > position.quantity:
+                raise ValidationError("Quantity exceeds open position size")
 
+            account = self._account_repo.get(position.account_id)
+            profile = self._broker_repo.get(account.broker_profile_id)
+            cost_engine = CostEngine(profile)
+
+            # Calculate exit costs for the closing quantity
             costs = cost_engine.exit_costs(
                 price=exit_price,
-                quantity=position.quantity,
+                quantity=quantity,
                 ticker=position.ticker,
                 instrument_type=position.instrument_type,
             )
-            account_before = self._account_repo.get(position.account_id)
-            account_updated = account_before.model_copy(
-                update={"cash": account_before.cash + exit_price * position.quantity - costs.total}
-            )
 
-            self._position_repo.update(closed)
-            self._account_repo.update(account_updated)
-            return closed
+            # Check if this is a full close
+            if quantity == position.quantity:
+                # Full close: use existing manager close logic
+                manager = PositionManager(self._position_repo, self._account_repo, cost_engine)
+                closed = manager.close(position, exit_price, close_reason, now_utc())
+                account_before = self._account_repo.get(position.account_id)
+                account_updated = account_before.model_copy(
+                    update={"cash": account_before.cash + exit_price * quantity - costs.total}
+                )
+                self._position_repo.update(closed)
+                self._account_repo.update(account_updated)
+                return closed
+            else:
+                # Partial close: decrement position quantity, accumulate realized P&L
+                if position.direction == "long":
+                    gross_pnl = (exit_price - position.entry_price) * quantity
+                else:
+                    gross_pnl = (position.entry_price - exit_price) * quantity
+
+                realized_pnl_increment = gross_pnl - costs.total
+                new_realized_pnl = (position.realized_pnl or 0) + realized_pnl_increment
+
+                # Update position: decrement quantity, accumulate realized P&L
+                updated_position = position.model_copy(
+                    update={
+                        "quantity": position.quantity - quantity,
+                        "realized_pnl": new_realized_pnl,
+                        "commission_exit": position.commission_exit + costs.commission,
+                    }
+                )
+
+                # Credit cash to account
+                account_before = self._account_repo.get(position.account_id)
+                account_updated = account_before.model_copy(
+                    update={"cash": account_before.cash + exit_price * quantity - costs.total}
+                )
+
+                self._position_repo.update(updated_position)
+                self._account_repo.update(account_updated)
+                return updated_position
 
     def modify(
         self, position_id: str, take_profit: float | None = None, stop_loss: float | None = None
