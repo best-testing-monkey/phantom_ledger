@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from phantom.errors import NotFoundError, PhantomError
 from phantom.web.app import get_phantom, templates
@@ -81,3 +81,21 @@ async def orders_rows(account: str | None = Query(None)):
 
     except (NotFoundError, PhantomError):
         return "<tbody id='orders-tbody'></tbody>"
+
+
+@router.get("/api/equity-data")
+async def equity_data(account: str | None = Query(None)):
+    """Return equity curve data as JSON for Chart.js."""
+    if not account:
+        return JSONResponse({"labels": [], "values": []})
+    try:
+        ph = get_phantom()
+        account_obj = ph.accounts.get(account)
+        from phantom.db.repositories.equity_repo import EquityRepo
+
+        points = EquityRepo(ph._conn).list(account_obj.id)
+        labels = [p.timestamp.split("T")[0] for p in points]
+        values = [p.equity for p in points]
+        return JSONResponse({"labels": labels, "values": values})
+    except Exception:
+        return JSONResponse({"labels": [], "values": []})
