@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Form, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from phantom.errors import NotFoundError, PhantomError
 from phantom.web.app import get_phantom, templates
@@ -21,10 +21,8 @@ async def position_detail(request: Request, position_id: str):
         notes = []
         try:
             notes = ph.notes.list(position_id=position_id)
-            # Truncate notes to 500 chars
-            for note in notes:
-                if len(note.content) > 500:
-                    note.content = note.content[:497] + "..."
+            # Sort newest-first
+            notes = sorted(notes, key=lambda n: n.created_at, reverse=True)
         except Exception:
             # Notes may not be available
             pass
@@ -69,3 +67,57 @@ async def position_detail(request: Request, position_id: str):
             },
             status_code=500,
         )
+
+
+@router.post("/positions/{position_id}/notes")
+async def add_note(
+    request: Request,
+    position_id: str,
+    content: str = Form(...),
+    title: str | None = Form(None),
+):
+    """Create a new trade note for a position."""
+    try:
+        if not content.strip():
+            # Re-render position detail with error
+            ph = get_phantom()
+            position = ph.positions.get(position_id)
+            account = ph.accounts.get(position.account_id)
+            notes = ph.notes.list(position_id=position_id)
+            notes = sorted(notes, key=lambda n: n.created_at, reverse=True)
+            duration_days = None
+            if position.exit_datetime and position.entry_datetime:
+                duration_days = (position.exit_datetime - position.entry_datetime).days
+            return templates.TemplateResponse(
+                request=request,
+                name="position_detail.html",
+                context={
+                    "position": position,
+                    "account": account,
+                    "notes": notes,
+                    "duration_days": duration_days,
+                    "error": "Note content cannot be empty",
+                },
+            )
+        ph = get_phantom()
+        position = ph.positions.get(position_id)
+        ph.notes.add(
+            position_id=position_id,
+            account_id=position.account_id,
+            content=content,
+            title=title or None,
+        )
+        return RedirectResponse(url=f"/positions/{position_id}", status_code=303)
+    except PhantomError as e:
+        return RedirectResponse(url=f"/positions/{position_id}?error={e}", status_code=303)
+
+
+@router.post("/positions/{position_id}/notes/{note_id}/delete")
+async def delete_note(position_id: str, note_id: str):
+    """Delete a trade note."""
+    try:
+        ph = get_phantom()
+        ph.notes.delete(note_id)
+    except Exception:
+        pass
+    return RedirectResponse(url=f"/positions/{position_id}", status_code=303)

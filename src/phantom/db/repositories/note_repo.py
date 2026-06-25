@@ -48,3 +48,12 @@ class NoteRepo:
             raise NotFoundError("Note", note.id)
         self._conn.commit()
         return note
+
+    def delete(self, note_id: str) -> None:
+        cursor = self._conn.execute(
+            "DELETE FROM trade_notes WHERE id = ?",
+            (note_id,),
+        )
+        if cursor.rowcount == 0:
+            raise NotFoundError("Note", note_id)
+        self._conn.commit()

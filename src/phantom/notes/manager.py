@@ -117,3 +117,10 @@ class NoteManager:
             except Exception as e:
                 logger.warning("Error searching file %s: %s", md_file, e)
         return results
+
+    def delete(self, note_id: str) -> None:
+        note = self._repo.get(note_id)
+        abs_path = self._data_dir / note.file_path
+        if abs_path.exists():
+            abs_path.unlink()
+        self._repo.delete(note_id)

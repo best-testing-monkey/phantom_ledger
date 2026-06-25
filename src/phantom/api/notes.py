@@ -36,3 +36,16 @@ class NoteAPI:
 
     def search(self, account_id: str, keyword: str) -> list[SearchResult]:
         return self._manager.search(account_id, keyword)
+
+    def add(
+        self, position_id: str, account_id: str, content: str, title: str | None = None
+    ) -> Note:
+        return self.create(
+            position_id=position_id,
+            account_id=account_id,
+            title=title or "",
+            content=content,
+        )
+
+    def delete(self, note_id: str) -> None:
+        return self._manager.delete(note_id)
