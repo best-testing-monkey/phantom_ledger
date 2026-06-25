@@ -21,6 +21,7 @@
                         <th>Status</th>
                         <th>Created At</th>
                         <th>Filled At</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -41,6 +42,34 @@
                             </td>
                             <td>{{ order.created_at.isoformat()[:19] if order.created_at else "—" }}</td>
                             <td>{{ order.filled_at.isoformat()[:19] if order.filled_at else "—" }}</td>
+                            <td>
+                                {% if order.status == "pending" %}
+                                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                                    <details style="flex:1;min-width:150px;">
+                                        <summary style="cursor:pointer;color:#3498db;font-weight:500;padding:0.25rem 0;">Modify ▾</summary>
+                                        <form method="post" action="/orders/{{ order.id }}/modify" style="margin-top:0.5rem;padding:0.5rem;background:#f9f9f9;border-radius:3px;">
+                                            <input type="hidden" name="account" value="{{ account.name }}">
+                                            <div style="display:grid;grid-template-columns:1fr;gap:0.25rem;font-size:0.85rem;">
+                                                <input type="number" name="limit_price" step="0.0001" placeholder="Limit price"
+                                                       value="{{ '%.4f'|format(order.limit_price) if order.limit_price else '' }}"
+                                                       style="width:100%;padding:0.3rem;border:1px solid #bdc3c7;border-radius:3px;">
+                                                <input type="number" name="stop_loss" step="0.0001" placeholder="Stop loss"
+                                                       value="{{ '%.4f'|format(order.stop_loss) if order.stop_loss else '' }}"
+                                                       style="width:100%;padding:0.3rem;border:1px solid #bdc3c7;border-radius:3px;">
+                                                <input type="number" name="take_profit" step="0.0001" placeholder="Take profit"
+                                                       value="{{ '%.4f'|format(order.take_profit) if order.take_profit else '' }}"
+                                                       style="width:100%;padding:0.3rem;border:1px solid #bdc3c7;border-radius:3px;">
+                                                <button type="submit" style="padding:0.3rem 0.75rem;font-size:0.85rem;margin-top:0.25rem;">Save</button>
+                                            </div>
+                                        </form>
+                                    </details>
+                                    <form method="post" action="/orders/{{ order.id }}/cancel" style="display:inline;">
+                                        <input type="hidden" name="account" value="{{ account.name }}">
+                                        <button type="submit" class="secondary" style="padding:0.3rem 0.75rem;font-size:0.85rem;">Cancel</button>
+                                    </form>
+                                </div>
+                                {% endif %}
+                            </td>
                         </tr>
                     {% endfor %}
                 </tbody>

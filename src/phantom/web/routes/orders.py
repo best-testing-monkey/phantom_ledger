@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
-from phantom.errors import PhantomError, ValidationError
+from phantom.errors import NotFoundError, PhantomError, ValidationError
 from phantom.models.order import Order
 from phantom.web.app import get_phantom, templates
 
@@ -37,6 +37,8 @@ async def order_history(request: Request, account: str | None = None, page: int 
                 "has_next": start + PAGE_SIZE < total,
             },
         )
+    except NotFoundError:
+        return RedirectResponse(url="/?error=account+not+found", status_code=303)
     except PhantomError as e:
         return RedirectResponse(url=f"/?error={e}", status_code=303)
 
@@ -47,9 +49,31 @@ async def cancel_order(order_id: str, account: str = Form(...)):
     try:
         ph = get_phantom()
         ph.orders.cancel(order_id)
-        return RedirectResponse(url=f"/?account={account}", status_code=303)
+        return RedirectResponse(url=f"/orders?account={account}", status_code=303)
     except PhantomError as e:
-        return RedirectResponse(url=f"/?account={account}&error={e}", status_code=303)
+        return RedirectResponse(url=f"/orders?account={account}&error={e}", status_code=303)
+
+
+@router.post("/orders/{order_id}/modify")
+async def modify_order(
+    order_id: str,
+    account: str = Form(...),
+    limit_price: float | None = Form(None),
+    stop_loss: float | None = Form(None),
+    take_profit: float | None = Form(None),
+):
+    """Modify a pending order's prices."""
+    try:
+        ph = get_phantom()
+        ph.orders.modify(
+            order_id,
+            limit_price=limit_price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+        )
+        return RedirectResponse(url=f"/orders?account={account}", status_code=303)
+    except PhantomError as e:
+        return RedirectResponse(url=f"/orders?account={account}&error={e}", status_code=303)
 
 
 @router.get("/orders/new", response_class=HTMLResponse)
@@ -121,7 +145,7 @@ async def place_order(
         )
 
         # Place the order
-        ph.orders.place(account_id, order)
+        placed_order = ph.orders.place(account_id, order)
 
         # On success, render confirmation page
         accounts = ph.accounts.list()
