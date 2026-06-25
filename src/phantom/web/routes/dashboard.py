@@ -25,6 +25,7 @@ async def dashboard(request: Request, account: str | None = None):
                     "positions": [],
                     "pending_orders": [],
                     "recent_trades": [],
+                    "report": {},
                     "no_accounts": True,
                     "simulated_now": get_simulated_now(),
                 },
@@ -46,6 +47,7 @@ async def dashboard(request: Request, account: str | None = None):
                         "positions": [],
                         "pending_orders": [],
                         "recent_trades": [],
+                        "report": {},
                         "error": f"Account {account} not found",
                         "simulated_now": get_simulated_now(),
                     },
@@ -65,6 +67,13 @@ async def dashboard(request: Request, account: str | None = None):
         # Calculate total unrealized P&L
         total_unrealized = sum(p.unrealized_pnl for p in positions)
 
+        # Get account metrics (performance summary)
+        report = {}
+        try:
+            report = ph.reports.account_metrics(account_obj.name)
+        except Exception:
+            pass
+
         return templates.TemplateResponse(
             request=request,
             name="dashboard.html",
@@ -75,6 +84,7 @@ async def dashboard(request: Request, account: str | None = None):
                 "pending_orders": pending_orders,
                 "recent_trades": recent_trades,
                 "total_unrealized": total_unrealized,
+                "report": report,
                 "no_accounts": False,
                 "simulated_now": get_simulated_now(),
             },
@@ -90,6 +100,7 @@ async def dashboard(request: Request, account: str | None = None):
                 "positions": [],
                 "pending_orders": [],
                 "recent_trades": [],
+                "report": {},
                 "error": str(e),
                 "simulated_now": get_simulated_now(),
             },
