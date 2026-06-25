@@ -3,7 +3,6 @@ import logging
 from pathlib import Path
 
 import pandas as pd
-
 import price_cache
 
 from phantom.data.dividends import DividendEvent, get_dividends

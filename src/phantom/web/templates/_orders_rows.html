@@ -1,0 +1,18 @@
+{% for order in pending_orders %}
+<tr>
+    <td>{{ order.ticker }}</td>
+    <td>{{ order.direction }}</td>
+    <td>{{ order.order_type }}</td>
+    <td>{{ "%.2f"|format(order.quantity) }}</td>
+    <td>{{ "%.4f"|format(order.limit_price) if order.limit_price else "—" }}</td>
+    <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else "—" }}</td>
+    <td>
+        <form method="post" action="/orders/{{ order.id }}/cancel" style="display:inline;">
+            <input type="hidden" name="account" value="{{ account.name }}">
+            <button class="secondary" style="padding:0.3rem 0.75rem;font-size:0.85rem;" onclick="return confirm('Cancel this order?')">Cancel</button>
+        </form>
+    </td>
+</tr>
+{% else %}
+<tr><td colspan="7" class="neutral" style="text-align:center;">No open orders.</td></tr>
+{% endfor %}

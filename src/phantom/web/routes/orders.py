@@ -8,6 +8,17 @@ from phantom.web.app import get_phantom, templates
 router = APIRouter()
 
 
+@router.post("/orders/{order_id}/cancel")
+async def cancel_order(order_id: str, account: str = Form(...)):
+    """Cancel a pending order."""
+    try:
+        ph = get_phantom()
+        ph.orders.cancel(order_id)
+        return RedirectResponse(url=f"/?account={account}", status_code=303)
+    except PhantomError as e:
+        return RedirectResponse(url=f"/?account={account}&error={e}", status_code=303)
+
+
 @router.get("/orders/new", response_class=HTMLResponse)
 async def order_form_page(request: Request):
     """Render the order placement form page."""
@@ -77,7 +88,7 @@ async def place_order(
         )
 
         # Place the order
-        placed_order = ph.orders.place(account_id, order)
+        ph.orders.place(account_id, order)
 
         # On success, redirect to position detail (if filled) or order confirmation
         # For now, redirect to dashboard
