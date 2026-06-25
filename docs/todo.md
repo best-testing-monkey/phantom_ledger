@@ -4,6 +4,14 @@ Missing features identified by auditing the running web UI against the requireme
 
 Tickets live in `docs/tickets/`. Each story is scoped to be implementable by a single agent with limited context — file locations, current state, and implementation hints are included in each ticket.
 
+## QA Status
+
+**QA completed 2026-06-25.** All 14 stories pass. Full findings in [`docs/findings/qa-e16-web-ui.md`](findings/qa-e16-web-ui.md).
+
+One critical bug was found and fixed during QA: HTMX fragment endpoints (`/api/orders-rows`, `/api/positions-rows`, `/api/equity-snapshot`) returned HTTP 500 because `TemplateResponse` was called without the required `request` parameter. Fixed in commit `eb91207`.
+
+**Note:** The running server must be restarted to pick up the new routes. Use `./start_web.sh` or `RELOAD=1 ./start_web.sh` for development.
+
 ---
 
 ## E16 · Web UI Improvements
