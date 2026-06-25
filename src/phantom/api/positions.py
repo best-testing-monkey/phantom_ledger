@@ -6,11 +6,13 @@ import threading
 from phantom.costs.engine import CostEngine
 from phantom.db.repositories.account_repo import AccountRepo
 from phantom.db.repositories.broker_repo import BrokerRepo
+from phantom.db.repositories.equity_repo import EquityRepo
 from phantom.db.repositories.position_repo import PositionRepo
 from phantom.engine.position_manager import PositionManager
 from phantom.errors import ValidationError
+from phantom.models.equity_point import EquityPoint
 from phantom.models.position import Position
-from phantom.utils.datetime import now_utc
+from phantom.utils.datetime import now_utc, to_iso
 
 
 class PositionAPI:
@@ -92,6 +94,14 @@ class PositionAPI:
                 )
                 self._position_repo.update(closed)
                 self._account_repo.update(account_updated)
+                # Record equity snapshot so the chart reflects the closed cash value
+                EquityRepo(self._conn).create(EquityPoint(
+                    account_id=position.account_id,
+                    timestamp=to_iso(closed.exit_datetime),
+                    equity=account_updated.cash,
+                    cash=account_updated.cash,
+                    unrealized_pnl=0.0,
+                ))
                 return closed
             else:
                 # Partial close: decrement position quantity, accumulate realized P&L
