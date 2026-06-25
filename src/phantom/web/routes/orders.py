@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from phantom.errors import NotFoundError, PhantomError, ValidationError
 from phantom.models.order import Order
 from phantom.web.app import get_phantom, templates
+from phantom.web.clock import get_simulated_now
 
 router = APIRouter()
 
@@ -54,6 +55,24 @@ async def cancel_order(order_id: str, account: str = Form(...)):
         return RedirectResponse(url=f"/orders?account={account}&error={e}", status_code=303)
 
 
+@router.post("/orders/{order_id}/fill")
+async def fill_order(
+    request: Request,
+    order_id: str,
+    fill_price: float = Form(...),
+    account: str = Form(...),
+):
+    """Manually fill a pending order at a specified price."""
+    try:
+        ph = get_phantom()
+        # Use simulated clock for fill datetime if set
+        fill_dt = get_simulated_now()
+        ph.orders.fill_manual(order_id, fill_price, fill_datetime=fill_dt)
+        return RedirectResponse(url=f"/?account={account}", status_code=303)
+    except PhantomError as e:
+        return RedirectResponse(url=f"/?account={account}&error={e}", status_code=303)
+
+
 @router.post("/orders/{order_id}/modify")
 async def modify_order(
     order_id: str,
@@ -82,6 +101,8 @@ async def order_form_page(request: Request):
     try:
         ph = get_phantom()
         accounts = ph.accounts.list()
+        sim_now = get_simulated_now()
+        simulated_date = sim_now.date().isoformat() if sim_now else ""
 
         return templates.TemplateResponse(
             request=request,
@@ -89,6 +110,7 @@ async def order_form_page(request: Request):
             context={
                 "accounts": accounts,
                 "error": None,
+                "simulated_date": simulated_date,
             },
         )
 
@@ -131,6 +153,11 @@ async def place_order(
                 },
             )
 
+        # Use simulated clock for created_at if set, otherwise wall clock
+        from phantom.utils.datetime import now_utc
+
+        order_time = get_simulated_now() or now_utc()
+
         # Create order object
         order = Order(
             account_id=account_id,
@@ -142,6 +169,7 @@ async def place_order(
             limit_price=limit_price if order_type == "limit" else None,
             stop_loss=stop_loss,
             take_profit=take_profit,
+            created_at=order_time,
         )
 
         # Place the order

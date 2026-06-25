@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 import sqlite3
 import threading
 
@@ -7,9 +8,12 @@ from phantom.costs.engine import CostEngine
 from phantom.db.repositories.account_repo import AccountRepo
 from phantom.db.repositories.broker_repo import BrokerRepo
 from phantom.db.repositories.order_repo import OrderRepo
+from phantom.db.repositories.position_repo import PositionRepo
 from phantom.engine.order_manager import OrderManager
 from phantom.errors import ValidationError
 from phantom.models.order import Order
+from phantom.models.position import Position
+from phantom.utils.datetime import now_utc
 
 
 class OrderAPI:
@@ -58,6 +62,26 @@ class OrderAPI:
         if order.status not in ("pending",):
             raise ValidationError(f"Cannot cancel order with status '{order.status}'")
         return self._order_repo.update_status(order_id, "cancelled")
+
+    def fill_manual(
+        self,
+        order_id: str,
+        fill_price: float,
+        fill_datetime: datetime | None = None,
+    ) -> tuple[Order, Position]:
+        """Manually fill a pending order at a specified price, creating a position."""
+        with self._lock:
+            order = self._order_repo.get(order_id)
+            if order.status != "pending":
+                raise ValidationError(f"Cannot fill order with status '{order.status}'")
+            if fill_price <= 0:
+                raise ValidationError("Fill price must be greater than zero")
+            fill_dt = fill_datetime or now_utc()
+            # Stamp the order with fill details so handle_fill can read them
+            order = order.model_copy(update={"fill_price": fill_price, "filled_at": fill_dt})
+            manager = self._get_manager(order.account_id)
+            position_repo = PositionRepo(self._conn)
+            return manager.handle_fill(order, position_repo)
 
     def modify(
         self,

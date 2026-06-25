@@ -86,6 +86,36 @@ async def orders_rows(request: Request, account: str | None = Query(None)):
         return "<tbody id='orders-tbody'></tbody>"
 
 
+@router.get("/api/price", response_class=HTMLResponse)
+async def price_lookup(ticker: str | None = Query(None), date: str | None = Query(None)):
+    """Return an HTML price hint for the order form (HTMX target)."""
+    if not ticker or not ticker.strip():
+        return ""
+    try:
+        from datetime import date as date_type
+        from datetime import timedelta
+
+        from phantom.config import get_data_dir
+        from phantom.data.yahoo import HistoricalProvider
+
+        lookup_date = date_type.fromisoformat(date) if date else date_type.today()
+        provider = HistoricalProvider(data_dir=str(get_data_dir()))
+        bars = provider.get_bars(
+            ticker.upper(), lookup_date - timedelta(days=5), lookup_date + timedelta(days=1)
+        )
+        if bars.empty:
+            return f"<span style='color:#e74c3c;'>No cached data for {ticker.upper()} — run: phantom data fetch --ticker {ticker.upper()}</span>"
+        available = bars[bars.index.date <= lookup_date]
+        if available.empty:
+            available = bars
+        row = available.iloc[-1]
+        price = float(row["Close"])
+        bar_date = available.index[-1].date().isoformat()
+        return f"<span style='color:#27ae60;'>Close on {bar_date}: <strong>${price:.4f}</strong></span>"
+    except Exception as e:
+        return f"<span style='color:#95a5a6;'>{e}</span>"
+
+
 @router.get("/api/equity-data")
 async def equity_data(account: str | None = Query(None)):
     """Return equity curve data as JSON for Chart.js."""

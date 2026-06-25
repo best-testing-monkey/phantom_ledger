@@ -24,11 +24,22 @@
   {% else %}
     <p class="neutral">Not set — using wall clock.</p>
   {% endif %}
-  <form method="post" action="/clock/set" style="margin-top:0.75rem;">
-    <div class="form-group">
-      <label for="datetime-input">Set Date & Time:</label>
-      <input type="datetime-local" id="datetime-input" name="simulated_now" required>
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.75rem;align-items:flex-end;">
+    <form method="post" action="/clock/set" style="display:flex;gap:0.5rem;align-items:flex-end;">
+      <div>
+        <label for="datetime-input" style="font-size:0.85rem;">Set Date & Time:</label>
+        <input type="datetime-local" id="datetime-input" name="simulated_now" required style="margin-bottom:0;">
+      </div>
       <button type="submit">Set</button>
-    </div>
-  </form>
+    </form>
+    {% if account %}
+    <form method="post" action="/simulation/run" style="display:inline;">
+      <input type="hidden" name="account" value="{{ account.name }}">
+      <button type="submit" style="background-color:#27ae60;"
+              title="Run backtest engine from earliest pending order date to the simulated clock date">
+        ▶ Run Simulation
+      </button>
+    </form>
+    {% endif %}
+  </div>
 </div>

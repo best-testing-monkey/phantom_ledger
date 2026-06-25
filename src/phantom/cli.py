@@ -937,6 +937,45 @@ def broker_show(name: str = typer.Argument(..., help="Broker profile name")):
         raise typer.Exit(code=1)
 
 
+@broker_app.command("load")
+def broker_load(path: str = typer.Argument(..., help="Path to broker profile JSON file")):
+    """Load a broker profile from a JSON file into the database."""
+    try:
+        ph = get_phantom()
+        p = ph.brokers.load(path)
+        console.print(f"[green]Loaded broker profile:[/green] {p.name}")
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@broker_app.command("seed")
+def broker_seed():
+    """Load all bundled broker profiles (DEGIRO, IBKR, XTB) into the database."""
+    try:
+        from pathlib import Path
+
+        profiles_dir = Path(__file__).parent / "profiles"
+        ph = get_phantom()
+        loaded = []
+        skipped = []
+        for json_file in sorted(profiles_dir.glob("*.json")):
+            try:
+                p = ph.brokers.load(str(json_file))
+                loaded.append(p.name)
+            except Exception:
+                skipped.append(json_file.stem.upper())
+        if loaded:
+            console.print(f"[green]Loaded:[/green] {', '.join(loaded)}")
+        if skipped:
+            console.print(f"[yellow]Already exists (skipped):[/yellow] {', '.join(skipped)}")
+        if not loaded and not skipped:
+            console.print("No bundled profiles found.")
+    except PhantomError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
 @broker_app.command("validate")
 def broker_validate(path: str = typer.Argument(..., help="Path to broker profile JSON file")):
     """Validate a broker profile JSON file."""
