@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Order History — {{ account.name }} - Phantom Ledger{% endblock %}
+
+{% block content %}
+    <div class="header">
+        <h1>Order History — {{ account.name }}</h1>
+    </div>
+
+    {% if orders %}
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Direction</th>
+                        <th>Type</th>
+                        <th>Qty</th>
+                        <th>Limit Price</th>
+                        <th>Fill Price</th>
+                        <th>Status</th>
+                        <th>Created At</th>
+                        <th>Filled At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set badge = {"pending": "#f39c12", "filled": "#27ae60", "cancelled": "#95a5a6", "rejected": "#e74c3c"} %}
+                    {% for order in orders %}
+                        <tr>
+                            <td>{{ order.ticker }}</td>
+                            <td>{{ order.direction }}</td>
+                            <td>{{ order.order_type }}</td>
+                            <td>{{ "%.2f"|format(order.quantity) }}</td>
+                            <td>{% if order.limit_price %}{{ "%.4f"|format(order.limit_price) }}{% else %}—{% endif %}</td>
+                            <td>{% if order.fill_price %}{{ "%.4f"|format(order.fill_price) }}{% else %}—{% endif %}</td>
+                            <td>
+                                <span style="background:{{ badge.get(order.status, '#bdc3c7') }};color:white;
+                                             padding:0.2rem 0.5rem;border-radius:3px;font-size:0.8rem;">
+                                  {{ order.status }}
+                                </span>
+                            </td>
+                            <td>{{ order.created_at.isoformat()[:19] if order.created_at else "—" }}</td>
+                            <td>{{ order.filled_at.isoformat()[:19] if order.filled_at else "—" }}</td>
+                            <td>
+                                {% if order.status == "pending" %}
+                                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                                    <details style="flex:1;min-width:150px;">
+                                        <summary style="cursor:pointer;color:#3498db;font-weight:500;padding:0.25rem 0;">Modify ▾</summary>
+                                        <form method="post" action="/orders/{{ order.id }}/modify" style="margin-top:0.5rem;padding:0.5rem;background:#f9f9f9;border-radius:3px;">
+                                            <input type="hidden" name="account" value="{{ account.name }}">
+                                            <div style="display:grid;grid-template-columns:1fr;gap:0.25rem;font-size:0.85rem;">
+                                                <input type="number" name="limit_price" step="0.0001" placeholder="Limit price"
+                                                       value="{{ '%.4f'|format(order.limit_price) if order.limit_price else '' }}"
+                                                       style="width:100%;padding:0.3rem;border:1px solid #bdc3c7;border-radius:3px;">
+                                                <input type="number" name="stop_loss" step="0.0001" placeholder="Stop loss"
+                                                       value="{{ '%.4f'|format(order.stop_loss) if order.stop_loss else '' }}"
+                                                       style="width:100%;padding:0.3rem;border:1px solid #bdc3c7;border-radius:3px;">
+                                                <input type="number" name="take_profit" step="0.0001" placeholder="Take profit"
+                                                       value="{{ '%.4f'|format(order.take_profit) if order.take_profit else '' }}"
+                                                       style="width:100%;padding:0.3rem;border:1px solid #bdc3c7;border-radius:3px;">
+                                                <button type="submit" style="padding:0.3rem 0.75rem;font-size:0.85rem;margin-top:0.25rem;">Save</button>
+                                            </div>
+                                        </form>
+                                    </details>
+                                    <form method="post" action="/orders/{{ order.id }}/cancel" style="display:inline;">
+                                        <input type="hidden" name="account" value="{{ account.name }}">
+                                        <button type="submit" class="secondary" style="padding:0.3rem 0.75rem;font-size:0.85rem;">Cancel</button>
+                                    </form>
+                                </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <div style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-size: 0.9rem; color: #7f8c8d;">
+                    {% set start_num = (page - 1) * page_size + 1 %}
+                    {% set end_num = [page * page_size, total]|min %}
+                    Showing {{ start_num }}–{{ end_num }} of {{ total }} orders
+                </div>
+
+                <div style="display: flex; gap: 1rem;">
+                    {% if has_prev %}
+                        <a href="/orders?account={{ account.name }}&page={{ page - 1 }}" style="padding: 0.5rem 1rem; background-color: #3498db; color: white; border-radius: 4px; text-decoration: none;">Previous</a>
+                    {% endif %}
+                    {% if has_next %}
+                        <a href="/orders?account={{ account.name }}&page={{ page + 1 }}" style="padding: 0.5rem 1rem; background-color: #3498db; color: white; border-radius: 4px; text-decoration: none;">Next</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="card">
+            <p>No orders yet.</p>
+        </div>
+    {% endif %}
+{% endblock %}

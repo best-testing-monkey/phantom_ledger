@@ -58,3 +58,25 @@ class OrderAPI:
         if order.status not in ("pending",):
             raise ValidationError(f"Cannot cancel order with status '{order.status}'")
         return self._order_repo.update_status(order_id, "cancelled")
+
+    def modify(
+        self,
+        order_id: str,
+        limit_price: float | None = None,
+        stop_loss: float | None = None,
+        take_profit: float | None = None,
+    ) -> Order:
+        with self._lock:
+            order = self._order_repo.get(order_id)
+            if order.status != "pending":
+                raise ValidationError(f"Cannot modify order with status '{order.status}'")
+            updates = {}
+            if limit_price is not None:
+                updates["limit_price"] = limit_price
+            if stop_loss is not None:
+                updates["stop_loss"] = stop_loss
+            if take_profit is not None:
+                updates["take_profit"] = take_profit
+            if not updates:
+                raise ValidationError("Provide at least one field to modify")
+            return self._order_repo.update_prices(order_id, updates)
