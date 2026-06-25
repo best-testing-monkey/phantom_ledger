@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 
 from phantom.errors import NotFoundError, PhantomError
 from phantom.web.app import get_phantom, templates
+from phantom.web.clock import get_simulated_now
 
 router = APIRouter()
 
@@ -23,6 +24,7 @@ async def dashboard(request: Request, account: str | None = None):
                     "positions": [],
                     "recent_trades": [],
                     "no_accounts": True,
+                    "simulated_now": get_simulated_now(),
                 },
             )
 
@@ -41,6 +43,7 @@ async def dashboard(request: Request, account: str | None = None):
                         "positions": [],
                         "recent_trades": [],
                         "error": f"Account {account} not found",
+                        "simulated_now": get_simulated_now(),
                     },
                 )
 
@@ -64,6 +67,7 @@ async def dashboard(request: Request, account: str | None = None):
                 "recent_trades": recent_trades,
                 "total_unrealized": total_unrealized,
                 "no_accounts": False,
+                "simulated_now": get_simulated_now(),
             },
         )
 
@@ -76,5 +80,6 @@ async def dashboard(request: Request, account: str | None = None):
                 "positions": [],
                 "recent_trades": [],
                 "error": str(e),
+                "simulated_now": get_simulated_now(),
             },
         )
