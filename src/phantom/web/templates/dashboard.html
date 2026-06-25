@@ -34,6 +34,7 @@
                             <th>Entry Price</th>
                             <th>Current Value</th>
                             <th>Unrealized P&L</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody id="positions-tbody" hx-get="/api/positions-rows?account={{ account.name }}" hx-trigger="every 30s" hx-target="#positions-tbody" hx-swap="innerHTML">

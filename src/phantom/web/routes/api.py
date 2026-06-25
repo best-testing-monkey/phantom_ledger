@@ -50,6 +50,7 @@ async def positions_rows(account: str | None = Query(None)):
             name="_positions_rows.html",
             context={
                 "positions": positions,
+                "account": account_obj,
             },
         )
 
