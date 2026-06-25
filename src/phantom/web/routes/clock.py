@@ -48,20 +48,22 @@ async def clock_fragment(request: Request):
 
 
 @router.post("/clock/set")
-async def clock_set(simulated_now: str = Form(...)):
+async def clock_set(simulated_now: str = Form(...), account: str | None = Form(None)):
     """Set the simulated clock. If moving forward, auto-runs simulation for pending orders."""
     old_dt = get_simulated_now()
     dt = datetime.fromisoformat(simulated_now).replace(tzinfo=timezone.utc)
     set_simulated_now(dt)
     if old_dt is None or dt > old_dt:
         _run_simulation_to(dt)
-    return RedirectResponse(url="/", status_code=303)
+    redirect = f"/?account={account}" if account else "/"
+    return RedirectResponse(url=redirect, status_code=303)
 
 
 @router.post("/clock/step")
-async def clock_step(days: int = Form(...)):
+async def clock_step(days: int = Form(...), account: str | None = Form(None)):
     """Step the simulated clock. Forward steps auto-run simulation for pending orders."""
     new_dt = step_simulated_now(days)
     if days > 0:
         _run_simulation_to(new_dt)
-    return RedirectResponse(url="/", status_code=303)
+    redirect = f"/?account={account}" if account else "/"
+    return RedirectResponse(url=redirect, status_code=303)
