@@ -11,20 +11,21 @@ router = APIRouter()
 @router.get("/brokers/compare", response_class=HTMLResponse)
 async def broker_comparison(request: Request, account: str | None = Query(None)):
     """Render the broker comparison page."""
-    if not account:
-        return templates.TemplateResponse(
-            request=request,
-            name="broker_comparison.html",
-            context={
-                "account": None,
-                "comparison": None,
-                "error": "account parameter is required",
-            },
-            status_code=400,
-        )
-
     try:
         ph = get_phantom()
+        accounts = ph.accounts.list()
+
+        if not account:
+            return templates.TemplateResponse(
+                request=request,
+                name="broker_comparison.html",
+                context={
+                    "account": None,
+                    "comparison": None,
+                    "accounts": accounts,
+                    "error": None,
+                },
+            )
 
         # Get account
         try:
@@ -36,6 +37,7 @@ async def broker_comparison(request: Request, account: str | None = Query(None))
                 context={
                     "account": None,
                     "comparison": None,
+                    "accounts": accounts,
                     "error": f"Account {account} not found",
                 },
                 status_code=404,
@@ -55,6 +57,7 @@ async def broker_comparison(request: Request, account: str | None = Query(None))
                 context={
                     "account": account_obj,
                     "comparison": None,
+                    "accounts": accounts,
                     "error": "No broker profiles available",
                 },
             )
@@ -72,6 +75,7 @@ async def broker_comparison(request: Request, account: str | None = Query(None))
                 "account": account_obj,
                 "comparison": comparison,
                 "cheapest_broker": cheapest_broker,
+                "accounts": accounts,
             },
         )
 
@@ -82,6 +86,7 @@ async def broker_comparison(request: Request, account: str | None = Query(None))
             context={
                 "account": None,
                 "comparison": None,
+                "accounts": [],
                 "error": str(e),
             },
         )
