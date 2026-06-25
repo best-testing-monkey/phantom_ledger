@@ -75,57 +75,35 @@
             </table>
         </div>
 
+        {% set total_costs = position.commission_entry + position.commission_exit
+           + position.spread_cost + position.slippage_cost
+           + position.overnight_costs + position.fx_conversion_cost %}
+
+        {% if total_costs == 0 and position.overnight_accrued == 0 %}
+        <div class="card">
+            <h2>Cost Breakdown</h2>
+            <p class="neutral">No costs recorded.</p>
+        </div>
+        {% else %}
         <div class="card">
             <h2>Cost Breakdown</h2>
             <table>
-                <thead>
-                    <tr>
-                        <th>Cost Component</th>
-                        <th>Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Entry Commission</td>
-                        <td>{{ "%.2f"|format(position.commission_entry) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Exit Commission</td>
-                        <td>{{ "%.2f"|format(position.commission_exit) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Spread Cost</td>
-                        <td>{{ "%.2f"|format(position.spread_cost) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Slippage Cost</td>
-                        <td>{{ "%.2f"|format(position.slippage_cost) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Overnight Costs</td>
-                        <td>{{ "%.2f"|format(position.overnight_costs) }}</td>
-                    </tr>
-                    <tr>
-                        <td>FX Conversion Cost</td>
-                        <td>{{ "%.2f"|format(position.fx_conversion_cost) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Dividend Adjustments</td>
-                        <td>{{ "%.2f"|format(position.dividend_adjustments) }}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Total Costs</strong></td>
-                        <td><strong>
-                            {{ "%.2f"|format(
-                                position.commission_entry + position.commission_exit + position.spread_cost +
-                                position.slippage_cost + position.overnight_costs + position.fx_conversion_cost +
-                                position.dividend_adjustments
-                            ) }}
-                        </strong></td>
-                    </tr>
-                </tbody>
+                <tr><td>Commission (entry)</td><td class="negative">{{ "%.2f"|format(position.commission_entry) }}</td></tr>
+                <tr><td>Commission (exit)</td><td class="negative">{{ "%.2f"|format(position.commission_exit) }}</td></tr>
+                <tr><td>Spread</td><td class="negative">{{ "%.2f"|format(position.spread_cost) }}</td></tr>
+                <tr><td>Slippage</td><td class="negative">{{ "%.2f"|format(position.slippage_cost) }}</td></tr>
+                <tr><td>Overnight (settled)</td><td class="negative">{{ "%.2f"|format(position.overnight_costs) }}</td></tr>
+                {% if position.status == "open" %}
+                <tr><td>Overnight (accruing)</td><td class="negative">{{ "%.2f"|format(position.overnight_accrued) }}</td></tr>
+                {% endif %}
+                <tr><td>FX Conversion</td><td class="negative">{{ "%.2f"|format(position.fx_conversion_cost) }}</td></tr>
+                <tr style="font-weight:600;border-top:2px solid #bdc3c7;">
+                    <td>Total Costs</td>
+                    <td class="negative">{{ "%.2f"|format(total_costs + position.overnight_accrued) }}</td>
+                </tr>
             </table>
         </div>
+        {% endif %}
 
         {% if notes %}
             <div class="card">
