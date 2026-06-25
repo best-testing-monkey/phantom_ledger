@@ -3,6 +3,7 @@
 {% block title %}Position {{ position.id|default('') }} - Phantom Ledger{% endblock %}
 
 {% block content %}
+    {% set reason_labels = {"sl": "Stop Loss", "tp": "Take Profit", "manual": "Manual", "margin_call": "Margin Call", "max_close": "Max Close Date", "trailing_stop": "Trailing Stop"} %}
     <div class="header">
         <h1>Position Detail</h1>
     </div>
@@ -62,7 +63,7 @@
                     </tr>
                     <tr>
                         <td><strong>Close Reason:</strong></td>
-                        <td>{{ position.close_reason }}</td>
+                        <td>{{ reason_labels.get(position.close_reason, position.close_reason) }}</td>
                     </tr>
                 {% else %}
                     <tr>
@@ -75,70 +76,93 @@
             </table>
         </div>
 
+        {% if position and position.status == "open" %}
+        <div class="card">
+            <h2>Close Position</h2>
+            <form method="post" action="/positions/{{ position.id }}/close" style="display:flex;gap:1rem;align-items:flex-end;">
+                <input type="hidden" name="account" value="{{ account.name if account else '' }}">
+                <div style="flex:1;">
+                    <label>Quantity to Close</label>
+                    <input type="number" name="quantity" step="0.0001" min="0.0001"
+                           value="{{ position.quantity }}" required style="margin-bottom:0;">
+                </div>
+                <div style="flex:1;">
+                    <label>Exit Price</label>
+                    <input type="number" name="exit_price" step="0.0001" min="0.0001" required
+                           placeholder="e.g. 150.25" style="margin-bottom:0;">
+                </div>
+                <button type="submit" onclick="return confirm('Close this position?')">Close Position</button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% set total_costs = position.commission_entry + position.commission_exit
+           + position.spread_cost + position.slippage_cost
+           + position.overnight_costs + position.fx_conversion_cost %}
+
+        {% if total_costs == 0 and position.overnight_accrued == 0 %}
+        <div class="card">
+            <h2>Cost Breakdown</h2>
+            <p class="neutral">No costs recorded.</p>
+        </div>
+        {% else %}
         <div class="card">
             <h2>Cost Breakdown</h2>
             <table>
-                <thead>
-                    <tr>
-                        <th>Cost Component</th>
-                        <th>Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Entry Commission</td>
-                        <td>{{ "%.2f"|format(position.commission_entry) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Exit Commission</td>
-                        <td>{{ "%.2f"|format(position.commission_exit) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Spread Cost</td>
-                        <td>{{ "%.2f"|format(position.spread_cost) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Slippage Cost</td>
-                        <td>{{ "%.2f"|format(position.slippage_cost) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Overnight Costs</td>
-                        <td>{{ "%.2f"|format(position.overnight_costs) }}</td>
-                    </tr>
-                    <tr>
-                        <td>FX Conversion Cost</td>
-                        <td>{{ "%.2f"|format(position.fx_conversion_cost) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Dividend Adjustments</td>
-                        <td>{{ "%.2f"|format(position.dividend_adjustments) }}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Total Costs</strong></td>
-                        <td><strong>
-                            {{ "%.2f"|format(
-                                position.commission_entry + position.commission_exit + position.spread_cost +
-                                position.slippage_cost + position.overnight_costs + position.fx_conversion_cost +
-                                position.dividend_adjustments
-                            ) }}
-                        </strong></td>
-                    </tr>
-                </tbody>
+                <tr><td>Commission (entry)</td><td class="negative">{{ "%.2f"|format(position.commission_entry) }}</td></tr>
+                <tr><td>Commission (exit)</td><td class="negative">{{ "%.2f"|format(position.commission_exit) }}</td></tr>
+                <tr><td>Spread</td><td class="negative">{{ "%.2f"|format(position.spread_cost) }}</td></tr>
+                <tr><td>Slippage</td><td class="negative">{{ "%.2f"|format(position.slippage_cost) }}</td></tr>
+                <tr><td>Overnight (settled)</td><td class="negative">{{ "%.2f"|format(position.overnight_costs) }}</td></tr>
+                {% if position.status == "open" %}
+                <tr><td>Overnight (accruing)</td><td class="negative">{{ "%.2f"|format(position.overnight_accrued) }}</td></tr>
+                {% endif %}
+                <tr><td>FX Conversion</td><td class="negative">{{ "%.2f"|format(position.fx_conversion_cost) }}</td></tr>
+                <tr style="font-weight:600;border-top:2px solid #bdc3c7;">
+                    <td>Total Costs</td>
+                    <td class="negative">{{ "%.2f"|format(total_costs + position.overnight_accrued) }}</td>
+                </tr>
             </table>
         </div>
+        {% endif %}
 
-        {% if notes %}
-            <div class="card">
-                <h2>Trade Notes</h2>
+        <div class="card">
+            <h2>Trade Notes</h2>
+            {% if notes %}
                 <div>
                     {% for note in notes %}
                         <div style="margin-bottom: 1rem; padding: 0.75rem; background-color: #f9f9f9; border-radius: 4px;">
-                            <strong>{{ note.created_at.strftime('%Y-%m-%d %H:%M') }}</strong>
-                            <p>{{ note.content }}</p>
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div style="flex: 1;">
+                                    <strong>{{ note.created_at.strftime('%Y-%m-%d %H:%M') }}</strong>
+                                    {% if note.title %}<span style="margin-left: 0.5rem; color: #666;">{{ note.title }}</span>{% endif %}
+                                    <p style="margin: 0.5rem 0 0 0; white-space: pre-wrap; word-wrap: break-word;">{{ note.content }}</p>
+                                </div>
+                                <form method="post" action="/positions/{{ position.id }}/notes/{{ note.id }}/delete" style="margin-left: 0.5rem;">
+                                    <button type="submit" style="padding: 0.25rem 0.5rem; font-size: 0.85rem; background-color: #e74c3c; color: white; border: none; border-radius: 3px; cursor: pointer;">Delete</button>
+                                </form>
+                            </div>
                         </div>
                     {% endfor %}
                 </div>
+            {% else %}
+                <p style="color: #999;">No notes yet.</p>
+            {% endif %}
+
+            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #ddd;">
+                <h3>Add Note</h3>
+                <form method="post" action="/positions/{{ position.id }}/notes">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="title" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Title (optional)</label>
+                        <input type="text" id="title" name="title" placeholder="e.g. Entry rationale" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="content" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Note</label>
+                        <textarea id="content" name="content" rows="4" required placeholder="Write your trade note here..." style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-family: inherit;"></textarea>
+                    </div>
+                    <button type="submit" style="padding: 0.5rem 1rem; background-color: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">Add Note</button>
+                </form>
             </div>
-        {% endif %}
+        </div>
     {% endif %}
 {% endblock %}

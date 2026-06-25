@@ -5,11 +5,24 @@
 {% block content %}
     <div class="header">
         <h1>Dashboard</h1>
+        {% if accounts and accounts|length > 1 %}
+        <form style="display:inline-block; margin-left:1rem;">
+            <select name="account" onchange="this.form.submit()" style="width:auto;margin-bottom:0;padding:0.4rem 0.75rem;">
+                {% for a in accounts %}
+                <option value="{{ a.name }}" {% if account and a.id == account.id %}selected{% endif %}>
+                    {{ a.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+        {% endif %}
     </div>
 
     {% if error %}
         <div class="error">{{ error }}</div>
     {% endif %}
+
+    {% include "_clock_panel.html" %}
 
     {% if no_accounts %}
         <div class="card">
@@ -21,6 +34,86 @@
         <div id="equity-panel" hx-get="/api/equity-snapshot?account={{ account.name }}" hx-trigger="every 30s" hx-target="#equity-panel" hx-swap="outerHTML">
             {% include "_equity_panel.html" %}
         </div>
+
+        <div class="card">
+            <h2>Equity Curve</h2>
+            <canvas id="equity-chart" height="80"></canvas>
+        </div>
+
+        <script>
+        (async () => {
+            const resp = await fetch("/api/equity-data?account={{ account.name }}");
+            const data = await resp.json();
+            if (!data.labels || data.labels.length < 2) {
+                document.getElementById("equity-chart").replaceWith(
+                    Object.assign(document.createElement("p"), {
+                        className: "neutral",
+                        textContent: "No equity data yet.",
+                        style: "padding:0.5rem 0;"
+                    })
+                );
+                return;
+            }
+            new Chart(document.getElementById("equity-chart"), {
+                type: "line",
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: "Equity",
+                        data: data.values,
+                        borderColor: "#3498db",
+                        backgroundColor: "rgba(52,152,219,0.1)",
+                        tension: 0.1,
+                        pointRadius: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: false } }
+                }
+            });
+        })();
+        </script>
+
+        {% set trades = report.get("trades") if report else None %}
+        <div class="card">
+            <h2>Performance Summary</h2>
+            {% if not trades %}
+                <p class="neutral">No closed trades yet.</p>
+            {% else %}
+                {% set realized_pnl = trades.gross_profit + trades.gross_loss %}
+                <div class="summary-grid" style="grid-template-columns: repeat(3, 1fr);">
+                    <div class="summary-card">
+                        <div class="label">Realized P&L</div>
+                        <div class="value {% if realized_pnl >= 0 %}positive{% else %}negative{% endif %}">
+                            {{ "%.2f"|format(realized_pnl) }}
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="label">Trades</div>
+                        <div class="value">{{ trades.trade_count }}</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="label">Win Rate</div>
+                        <div class="value">{{ "%.1f"|format(trades.win_rate_pct) }}%</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="label">Avg Win</div>
+                        <div class="value positive">{{ "%.2f"|format(trades.avg_win) }}</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="label">Avg Loss</div>
+                        <div class="value negative">{{ "%.2f"|format(trades.avg_loss) }}</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="label">Profit Factor</div>
+                        <div class="value">{% if trades.profit_factor == trades.profit_factor and trades.profit_factor < 1e308 %}{{ "%.2f"|format(trades.profit_factor) }}{% else %}∞{% endif %}</div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
 
         {% if positions %}
             <div class="card">
@@ -34,6 +127,7 @@
                             <th>Entry Price</th>
                             <th>Current Value</th>
                             <th>Unrealized P&L</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody id="positions-tbody" hx-get="/api/positions-rows?account={{ account.name }}" hx-trigger="every 30s" hx-target="#positions-tbody" hx-swap="innerHTML">
@@ -43,9 +137,51 @@
             </div>
         {% endif %}
 
+        <div class="card">
+            <h2>Open Orders</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Direction</th>
+                        <th>Type</th>
+                        <th>Qty</th>
+                        <th>TP</th>
+                        <th>SL</th>
+                        <th>Limit Price</th>
+                        <th>Created At</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="orders-tbody" hx-get="/api/orders-rows?account={{ account.name }}" hx-trigger="every 30s" hx-target="#orders-tbody" hx-swap="innerHTML">
+                    {% for order in pending_orders %}
+                    <tr>
+                        <td>{{ order.ticker }}</td>
+                        <td>{{ order.direction }}</td>
+                        <td>{{ order.order_type }}</td>
+                        <td>{{ "%.2f"|format(order.quantity) }}</td>
+                        <td>{{ "%.4f"|format(order.take_profit) if order.take_profit else "—" }}</td>
+                        <td>{{ "%.4f"|format(order.stop_loss) if order.stop_loss else "—" }}</td>
+                        <td>{{ "%.4f"|format(order.limit_price) if order.limit_price else "—" }}</td>
+                        <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else "—" }}</td>
+                        <td>
+                            <form method="post" action="/orders/{{ order.id }}/cancel" style="display:inline;">
+                                <input type="hidden" name="account" value="{{ account.name }}">
+                                <button class="secondary" style="padding:0.3rem 0.75rem;font-size:0.85rem;" onclick="return confirm('Cancel this order?')">Cancel</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="9" class="neutral" style="text-align:center;">No open orders.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
         {% if recent_trades %}
             <div class="card">
-                <h2>Recent Closed Trades (Last 10)</h2>
+                <h2>Recent Closed Trades</h2>
+                {% set reason_labels = {"sl": "Stop Loss", "tp": "Take Profit", "manual": "Manual", "margin_call": "Margin Call", "max_close": "Max Close Date", "trailing_stop": "Trailing Stop"} %}
                 <table>
                     <thead>
                         <tr>
@@ -70,12 +206,27 @@
                                 <td class="{% if trade.realized_pnl is not none and trade.realized_pnl >= 0 %}positive{% elif trade.realized_pnl %}negative{% else %}neutral{% endif %}">
                                     {{ "%.2f"|format(trade.realized_pnl or 0) }}
                                 </td>
-                                <td>{{ trade.close_reason or "manual" }}</td>
+                                <td>{{ reason_labels.get(trade.close_reason, trade.close_reason) }}</td>
                                 <td>{{ trade.exit_datetime.strftime('%Y-%m-%d %H:%M') if trade.exit_datetime }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
+                {% if total_closed > page_size %}
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
+                  <span class="neutral" style="font-size:0.9rem;">
+                    Showing {{ trade_start }}–{{ trade_end }} of {{ total_closed }} closed trades
+                  </span>
+                  <div>
+                    {% if has_prev %}
+                    <a href="/?account={{ account.name }}&page={{ page - 1 }}">← Previous</a>
+                    {% endif %}
+                    {% if has_next %}
+                    <a href="/?account={{ account.name }}&page={{ page + 1 }}" style="margin-left:1rem;">Next →</a>
+                    {% endif %}
+                  </div>
+                </div>
+                {% endif %}
             </div>
         {% else %}
             <div class="card">
