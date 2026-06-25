@@ -51,6 +51,7 @@ class PositionAPI:
         close_reason: str = "manual",
         exit_price: float | None = None,
         quantity: float | None = None,
+        exit_datetime=None,
     ) -> Position:
         with self._lock:
             position = self._position_repo.get(position_id)
@@ -84,7 +85,7 @@ class PositionAPI:
             if quantity == position.quantity:
                 # Full close: use existing manager close logic
                 manager = PositionManager(self._position_repo, self._account_repo, cost_engine)
-                closed = manager.close(position, exit_price, close_reason, now_utc())
+                closed = manager.close(position, exit_price, close_reason, exit_datetime or now_utc())
                 account_before = self._account_repo.get(position.account_id)
                 account_updated = account_before.model_copy(
                     update={"cash": account_before.cash + exit_price * quantity - costs.total}

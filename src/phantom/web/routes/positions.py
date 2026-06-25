@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from phantom.errors import NotFoundError, PhantomError
 from phantom.web.app import get_phantom, templates
+from phantom.web.clock import get_simulated_now
 
 router = APIRouter()
 
@@ -81,7 +82,11 @@ async def close_position(
     try:
         ph = get_phantom()
         ph.positions.close(
-            position_id, close_reason="manual", exit_price=exit_price, quantity=quantity
+            position_id,
+            close_reason="manual",
+            exit_price=exit_price,
+            quantity=quantity,
+            exit_datetime=get_simulated_now(),
         )
         return RedirectResponse(url=f"/?account={account}", status_code=303)
     except PhantomError as e:
