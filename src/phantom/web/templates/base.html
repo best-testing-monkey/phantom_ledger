@@ -258,7 +258,7 @@
     <nav>
         <a href="/">Dashboard</a>
         <a href="/orders/new">Place Order</a>
-        <a href="/orders">Orders</a>
+        <a href="/orders{% if account %}?account={{ account.name }}{% endif %}">Orders</a>
         <a href="/brokers/compare">Broker Compare</a>
     </nav>
 
