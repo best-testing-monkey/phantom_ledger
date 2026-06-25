@@ -175,7 +175,7 @@
 
         {% if recent_trades %}
             <div class="card">
-                <h2>Recent Closed Trades (Last 10)</h2>
+                <h2>Recent Closed Trades</h2>
                 <table>
                     <thead>
                         <tr>
@@ -206,6 +206,21 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                {% if total_closed > page_size %}
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
+                  <span class="neutral" style="font-size:0.9rem;">
+                    Showing {{ trade_start }}–{{ trade_end }} of {{ total_closed }} closed trades
+                  </span>
+                  <div>
+                    {% if has_prev %}
+                    <a href="/?account={{ account.name }}&page={{ page - 1 }}">← Previous</a>
+                    {% endif %}
+                    {% if has_next %}
+                    <a href="/?account={{ account.name }}&page={{ page + 1 }}" style="margin-left:1rem;">Next →</a>
+                    {% endif %}
+                  </div>
+                </div>
+                {% endif %}
             </div>
         {% else %}
             <div class="card">
