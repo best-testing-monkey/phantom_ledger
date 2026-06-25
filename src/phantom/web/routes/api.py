@@ -55,3 +55,28 @@ async def positions_rows(account: str | None = Query(None)):
 
     except (NotFoundError, PhantomError):
         return "<tbody id='positions-tbody'><tr><td colspan='6'>Failed to load positions</td></tr></tbody>"
+
+
+@router.get("/api/orders-rows", response_class=HTMLResponse)
+async def orders_rows(account: str | None = Query(None)):
+    """Return orders rows fragment for HTMX."""
+    if not account:
+        return "<tbody id='orders-tbody'></tbody>"
+
+    try:
+        ph = get_phantom()
+        account_obj = ph.accounts.get(account)
+
+        # Get pending orders
+        pending_orders = ph.orders.list(account_name=account_obj.name, status="pending")
+
+        return templates.TemplateResponse(
+            name="_orders_rows.html",
+            context={
+                "pending_orders": pending_orders,
+                "account": account_obj,
+            },
+        )
+
+    except (NotFoundError, PhantomError):
+        return "<tbody id='orders-tbody'></tbody>"

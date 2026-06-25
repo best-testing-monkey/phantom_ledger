@@ -23,6 +23,7 @@ async def dashboard(request: Request, account: str | None = None):
                     "account": None,
                     "accounts": accounts,
                     "positions": [],
+                    "pending_orders": [],
                     "recent_trades": [],
                     "no_accounts": True,
                     "simulated_now": get_simulated_now(),
@@ -43,6 +44,7 @@ async def dashboard(request: Request, account: str | None = None):
                         "account": None,
                         "accounts": accounts,
                         "positions": [],
+                        "pending_orders": [],
                         "recent_trades": [],
                         "error": f"Account {account} not found",
                         "simulated_now": get_simulated_now(),
@@ -51,6 +53,9 @@ async def dashboard(request: Request, account: str | None = None):
 
         # Get open positions
         positions = ph.positions.list(account_name=account_obj.name, status="open")
+
+        # Get pending orders
+        pending_orders = ph.orders.list(account_name=account_obj.name, status="pending")
 
         # Get recent closed trades (last 10)
         all_positions = ph.positions.list(account_name=account_obj.name)
@@ -67,6 +72,7 @@ async def dashboard(request: Request, account: str | None = None):
                 "account": account_obj,
                 "accounts": accounts,
                 "positions": positions,
+                "pending_orders": pending_orders,
                 "recent_trades": recent_trades,
                 "total_unrealized": total_unrealized,
                 "no_accounts": False,
@@ -82,6 +88,7 @@ async def dashboard(request: Request, account: str | None = None):
                 "account": None,
                 "accounts": [],
                 "positions": [],
+                "pending_orders": [],
                 "recent_trades": [],
                 "error": str(e),
                 "simulated_now": get_simulated_now(),
