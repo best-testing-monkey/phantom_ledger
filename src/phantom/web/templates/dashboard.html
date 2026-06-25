@@ -22,6 +22,47 @@
             {% include "_equity_panel.html" %}
         </div>
 
+        <div class="card">
+            <h2>Equity Curve</h2>
+            <canvas id="equity-chart" height="80"></canvas>
+        </div>
+
+        <script>
+        (async () => {
+            const resp = await fetch("/api/equity-data?account={{ account.name }}");
+            const data = await resp.json();
+            if (!data.labels || data.labels.length < 2) {
+                document.getElementById("equity-chart").replaceWith(
+                    Object.assign(document.createElement("p"), {
+                        className: "neutral",
+                        textContent: "No equity data yet.",
+                        style: "padding:0.5rem 0;"
+                    })
+                );
+                return;
+            }
+            new Chart(document.getElementById("equity-chart"), {
+                type: "line",
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: "Equity",
+                        data: data.values,
+                        borderColor: "#3498db",
+                        backgroundColor: "rgba(52,152,219,0.1)",
+                        tension: 0.1,
+                        pointRadius: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: false } }
+                }
+            });
+        })();
+        </script>
+
         {% if positions %}
             <div class="card">
                 <h2>Open Positions</h2>
