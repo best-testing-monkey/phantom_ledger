@@ -7,6 +7,39 @@ from phantom.web.app import get_phantom, templates
 
 router = APIRouter()
 
+PAGE_SIZE = 50
+
+
+@router.get("/orders", response_class=HTMLResponse)
+async def order_history(request: Request, account: str | None = None, page: int = 1):
+    """Render the order history page."""
+    if not account:
+        return RedirectResponse(url="/?error=account+required", status_code=303)
+    try:
+        ph = get_phantom()
+        account_obj = ph.accounts.get(account)
+        all_orders = ph.orders.list(account_name=account)
+        # Sort newest first
+        all_orders.sort(key=lambda o: o.created_at, reverse=True)
+        total = len(all_orders)
+        start = (page - 1) * PAGE_SIZE
+        orders = all_orders[start : start + PAGE_SIZE]
+        return templates.TemplateResponse(
+            request=request,
+            name="order_history.html",
+            context={
+                "account": account_obj,
+                "orders": orders,
+                "page": page,
+                "total": total,
+                "page_size": PAGE_SIZE,
+                "has_prev": page > 1,
+                "has_next": start + PAGE_SIZE < total,
+            },
+        )
+    except PhantomError as e:
+        return RedirectResponse(url=f"/?error={e}", status_code=303)
+
 
 @router.get("/orders/new", response_class=HTMLResponse)
 async def order_form_page(request: Request):
@@ -77,7 +110,7 @@ async def place_order(
         )
 
         # Place the order
-        placed_order = ph.orders.place(account_id, order)
+        ph.orders.place(account_id, order)
 
         # On success, redirect to position detail (if filled) or order confirmation
         # For now, redirect to dashboard
