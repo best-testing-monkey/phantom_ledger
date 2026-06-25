@@ -2,7 +2,7 @@
      hx-get="/api/clock" hx-trigger="every 10s" hx-target="#clock-panel" hx-swap="outerHTML">
   <h2>Simulated Clock</h2>
   {% if simulated_now %}
-    <p><strong>{{ simulated_now.strftime('%Y-%m-%d %H:%M UTC') }}</strong></p>
+    <p><strong>{{ simulated_now.strftime('%Y-%m-%d %H:%M') }}</strong></p>
     <div style="margin: 1rem 0; display: flex; gap: 0.5rem;">
       <form method="post" action="/clock/step" style="display:inline;">
         <input type="hidden" name="days" value="-7">
@@ -28,7 +28,11 @@
     <form method="post" action="/clock/set" style="display:flex;gap:0.5rem;align-items:flex-end;">
       <div>
         <label for="datetime-input" style="font-size:0.85rem;">Set Date & Time:</label>
-        <input type="datetime-local" id="datetime-input" name="simulated_now" required style="margin-bottom:0;">
+        <input type="text" id="datetime-input" name="simulated_now" required
+               placeholder="YYYY-MM-DD HH:MM"
+               value="{{ simulated_now.strftime('%Y-%m-%d %H:%M') if simulated_now else '' }}"
+               pattern="\d{4}-\d{2}-\d{2} \d{2}:\d{2}"
+               style="margin-bottom:0;width:14ch;font-family:monospace;">
       </div>
       <button type="submit">Set</button>
     </form>
