@@ -146,6 +146,8 @@
                         <th>Direction</th>
                         <th>Type</th>
                         <th>Qty</th>
+                        <th>TP</th>
+                        <th>SL</th>
                         <th>Limit Price</th>
                         <th>Created At</th>
                         <th>Action</th>
@@ -158,6 +160,8 @@
                         <td>{{ order.direction }}</td>
                         <td>{{ order.order_type }}</td>
                         <td>{{ "%.2f"|format(order.quantity) }}</td>
+                        <td>{{ "%.4f"|format(order.take_profit) if order.take_profit else "—" }}</td>
+                        <td>{{ "%.4f"|format(order.stop_loss) if order.stop_loss else "—" }}</td>
                         <td>{{ "%.4f"|format(order.limit_price) if order.limit_price else "—" }}</td>
                         <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else "—" }}</td>
                         <td>
@@ -168,7 +172,7 @@
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="7" class="neutral" style="text-align:center;">No open orders.</td></tr>
+                    <tr><td colspan="9" class="neutral" style="text-align:center;">No open orders.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -177,6 +181,7 @@
         {% if recent_trades %}
             <div class="card">
                 <h2>Recent Closed Trades</h2>
+                {% set reason_labels = {"sl": "Stop Loss", "tp": "Take Profit", "manual": "Manual", "margin_call": "Margin Call", "max_close": "Max Close Date", "trailing_stop": "Trailing Stop"} %}
                 <table>
                     <thead>
                         <tr>
@@ -201,7 +206,7 @@
                                 <td class="{% if trade.realized_pnl is not none and trade.realized_pnl >= 0 %}positive{% elif trade.realized_pnl %}negative{% else %}neutral{% endif %}">
                                     {{ "%.2f"|format(trade.realized_pnl or 0) }}
                                 </td>
-                                <td>{{ trade.close_reason or "manual" }}</td>
+                                <td>{{ reason_labels.get(trade.close_reason, trade.close_reason) }}</td>
                                 <td>{{ trade.exit_datetime.strftime('%Y-%m-%d %H:%M') if trade.exit_datetime }}</td>
                             </tr>
                         {% endfor %}

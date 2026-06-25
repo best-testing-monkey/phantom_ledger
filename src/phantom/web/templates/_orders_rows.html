@@ -4,6 +4,8 @@
     <td>{{ order.direction }}</td>
     <td>{{ order.order_type }}</td>
     <td>{{ "%.2f"|format(order.quantity) }}</td>
+    <td>{{ "%.4f"|format(order.take_profit) if order.take_profit else "—" }}</td>
+    <td>{{ "%.4f"|format(order.stop_loss) if order.stop_loss else "—" }}</td>
     <td>{{ "%.4f"|format(order.limit_price) if order.limit_price else "—" }}</td>
     <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else "—" }}</td>
     <td>
@@ -14,5 +16,5 @@
     </td>
 </tr>
 {% else %}
-<tr><td colspan="7" class="neutral" style="text-align:center;">No open orders.</td></tr>
+<tr><td colspan="9" class="neutral" style="text-align:center;">No open orders.</td></tr>
 {% endfor %}

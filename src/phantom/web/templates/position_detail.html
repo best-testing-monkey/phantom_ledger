@@ -3,6 +3,7 @@
 {% block title %}Position {{ position.id|default('') }} - Phantom Ledger{% endblock %}
 
 {% block content %}
+    {% set reason_labels = {"sl": "Stop Loss", "tp": "Take Profit", "manual": "Manual", "margin_call": "Margin Call", "max_close": "Max Close Date", "trailing_stop": "Trailing Stop"} %}
     <div class="header">
         <h1>Position Detail</h1>
     </div>
@@ -62,7 +63,7 @@
                     </tr>
                     <tr>
                         <td><strong>Close Reason:</strong></td>
-                        <td>{{ position.close_reason }}</td>
+                        <td>{{ reason_labels.get(position.close_reason, position.close_reason) }}</td>
                     </tr>
                 {% else %}
                     <tr>
