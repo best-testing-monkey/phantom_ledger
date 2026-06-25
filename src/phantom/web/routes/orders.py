@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 
 from phantom.errors import PhantomError, ValidationError
 from phantom.models.order import Order
@@ -79,9 +79,17 @@ async def place_order(
         # Place the order
         placed_order = ph.orders.place(account_id, order)
 
-        # On success, redirect to position detail (if filled) or order confirmation
-        # For now, redirect to dashboard
-        return RedirectResponse(url="/", status_code=303)
+        # On success, render confirmation page
+        accounts = ph.accounts.list()
+        account_obj = next((a for a in accounts if a.id == account_id), None)
+        return templates.TemplateResponse(
+            request=request,
+            name="order_confirmation.html",
+            context={
+                "order": placed_order,
+                "account": account_obj,
+            },
+        )
 
     except ValidationError as e:
         accounts = ph.accounts.list()

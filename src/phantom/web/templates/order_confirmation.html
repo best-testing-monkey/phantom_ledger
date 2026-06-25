@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Order Confirmation — Phantom Ledger{% endblock %}
+{% block content %}
+<div class="header"><h1>Order Confirmation</h1></div>
+
+{% if order.status == "filled" %}
+<div class="success">Order filled at {{ "%.4f"|format(order.fill_price) }}</div>
+{% else %}
+<div style="background:#e8f4fd;border:1px solid #3498db;color:#2980b9;padding:1rem;border-radius:4px;margin-bottom:1rem;">
+  Order placed — waiting to fill
+</div>
+{% endif %}
+
+<div class="card">
+  <table>
+    <tr><th>Symbol</th><td>{{ order.ticker }}</td></tr>
+    <tr><th>Direction</th><td>{{ order.direction }}</td></tr>
+    <tr><th>Type</th><td>{{ order.order_type }}</td></tr>
+    <tr><th>Quantity</th><td>{{ order.quantity }}</td></tr>
+    <tr><th>Status</th><td>{{ order.status }}</td></tr>
+    {% if order.limit_price %}<tr><th>Limit Price</th><td>{{ "%.4f"|format(order.limit_price) }}</td></tr>{% endif %}
+    {% if order.fill_price %}<tr><th>Fill Price</th><td>{{ "%.4f"|format(order.fill_price) }}</td></tr>{% endif %}
+  </table>
+</div>
+
+<a href="/" class="button">← Dashboard</a>
+<a href="/orders/new" class="button secondary" style="margin-left:1rem;">Place Another</a>
+{% endblock %}
