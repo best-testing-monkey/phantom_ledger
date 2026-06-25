@@ -8,9 +8,27 @@
         <td class="{% if position.unrealized_pnl >= 0 %}positive{% else %}negative{% endif %}">
             {{ "%.2f"|format(position.unrealized_pnl) }}
         </td>
+        <td>
+            {% if position.status == "open" %}
+            <details>
+                <summary style="cursor:pointer;color:#3498db;list-style:none;">Close ▾</summary>
+                <form method="post" action="/positions/{{ position.id }}/close"
+                      style="margin-top:0.5rem;display:flex;gap:0.5rem;align-items:center;">
+                    <input type="hidden" name="account" value="{{ account.name if account else '' }}">
+                    <input type="number" name="quantity" step="0.0001" min="0.0001"
+                           value="{{ position.quantity }}" placeholder="Qty to close" required
+                           style="width:100px;padding:0.3rem;margin-bottom:0;font-size:0.85rem;">
+                    <input type="number" name="exit_price" step="0.0001" min="0.0001"
+                           placeholder="Exit price" required
+                           style="width:130px;padding:0.3rem;margin-bottom:0;font-size:0.85rem;">
+                    <button type="submit" style="padding:0.3rem 0.75rem;font-size:0.85rem;">✓</button>
+                </form>
+            </details>
+            {% endif %}
+        </td>
     </tr>
 {% else %}
     <tr>
-        <td colspan="6">No open positions</td>
+        <td colspan="8">No open positions</td>
     </tr>
 {% endfor %}
