@@ -75,6 +75,21 @@
             </table>
         </div>
 
+        {% if position and position.status == "open" %}
+        <div class="card">
+            <h2>Close Position</h2>
+            <form method="post" action="/positions/{{ position.id }}/close" style="display:flex;gap:1rem;align-items:flex-end;">
+                <input type="hidden" name="account" value="{{ account.name if account else '' }}">
+                <div style="flex:1;">
+                    <label>Exit Price</label>
+                    <input type="number" name="exit_price" step="0.0001" min="0.0001" required
+                           placeholder="e.g. 150.25" style="margin-bottom:0;">
+                </div>
+                <button type="submit" onclick="return confirm('Close this position?')">Close Position</button>
+            </form>
+        </div>
+        {% endif %}
+
         {% set total_costs = position.commission_entry + position.commission_exit
            + position.spread_cost + position.slippage_cost
            + position.overnight_costs + position.fx_conversion_cost %}
