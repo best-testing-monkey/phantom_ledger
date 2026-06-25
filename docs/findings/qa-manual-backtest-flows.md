@@ -81,13 +81,13 @@ Position detail page shows Close Reason: **`sl`** — the internal enum value ra
 
 ## Summary of missing web UI features for manual backtesting
 
-| # | Missing Feature | Workaround |
+| # | Missing Feature | Status |
 |---|---|---|
-| 1 | Orders inherit simulated clock datetime as `created_at` | CLI `--at` flag |
-| 2 | "Fill Order at $X" button for pending market orders | CLI `phantom replay` or backtest |
-| 3 | "Run bar / advance engine" when clock steps forward | CLI `ph.runner.backtest()` |
-| 4 | TP/SL values shown in Open Orders dashboard table | Orders history page (partially) |
-| 5 | Current/historical market price preview before order placement | External data lookup |
-| 6 | Close Reason rendered as human label ("Stop Loss") not code ("sl") | None |
+| 1 | Orders inherit simulated clock datetime as `created_at` | ✅ Fixed — `place_order` reads `get_simulated_now()` for `created_at` |
+| 2 | "Fill Order at $X" button for pending market orders | ✅ Fixed — `POST /orders/{id}/fill` + Fill ▾ button in Open Orders table |
+| 3 | "Run bar / advance engine" when clock steps forward | ✅ Fixed — `POST /simulation/run` + ▶ Run Simulation button in clock panel |
+| 4 | TP/SL values shown in Open Orders dashboard table | ✅ Fixed — TP/SL columns added to Open Orders table |
+| 5 | Current/historical market price preview before order placement | ✅ Fixed — `GET /api/price` HTMX endpoint + price hint in order form |
+| 6 | Close Reason rendered as human label ("Stop Loss") not code ("sl") | ✅ Fixed — `reason_labels` mapping in dashboard.html and position_detail.html |
 
-Features 1–3 are the core gap: the simulated clock is purely cosmetic. To actually run the engine, the CLI or library API is required. This is by design for the current implementation but represents the biggest usability gap for a manual backtesting workflow.
+All 6 issues fixed in commit `dc8e105`.
