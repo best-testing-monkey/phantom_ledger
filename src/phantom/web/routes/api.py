@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from phantom.errors import NotFoundError, PhantomError
 from phantom.web.app import get_phantom, templates
+from phantom.web.clock import get_simulated_now
 
 router = APIRouter()
 
@@ -17,8 +18,17 @@ async def equity_snapshot(request: Request, account: str | None = Query(None)):
         ph = get_phantom()
         account_obj = ph.accounts.get(account)
 
-        # Get open positions for unrealized P&L
-        positions = ph.positions.list(account_name=account_obj.name, status="open")
+        simulated_now = get_simulated_now()
+        if simulated_now:
+            all_pos = ph.positions.list(account_name=account_obj.name)
+            visible = [p for p in all_pos if p.entry_datetime and p.entry_datetime <= simulated_now]
+            positions = [
+                p for p in visible
+                if p.status == "open"
+                or (p.status == "closed" and p.exit_datetime and p.exit_datetime > simulated_now)
+            ]
+        else:
+            positions = ph.positions.list(account_name=account_obj.name, status="open")
         total_unrealized = sum(p.unrealized_pnl for p in positions)
 
         return templates.TemplateResponse(
@@ -44,8 +54,17 @@ async def positions_rows(request: Request, account: str | None = Query(None)):
         ph = get_phantom()
         account_obj = ph.accounts.get(account)
 
-        # Get open positions
-        positions = ph.positions.list(account_name=account_obj.name, status="open")
+        simulated_now = get_simulated_now()
+        if simulated_now:
+            all_pos = ph.positions.list(account_name=account_obj.name)
+            visible = [p for p in all_pos if p.entry_datetime and p.entry_datetime <= simulated_now]
+            positions = [
+                p for p in visible
+                if p.status == "open"
+                or (p.status == "closed" and p.exit_datetime and p.exit_datetime > simulated_now)
+            ]
+        else:
+            positions = ph.positions.list(account_name=account_obj.name, status="open")
 
         return templates.TemplateResponse(
             request=request,
@@ -70,8 +89,10 @@ async def orders_rows(request: Request, account: str | None = Query(None)):
         ph = get_phantom()
         account_obj = ph.accounts.get(account)
 
-        # Get pending orders
+        simulated_now = get_simulated_now()
         pending_orders = ph.orders.list(account_name=account_obj.name, status="pending")
+        if simulated_now:
+            pending_orders = [o for o in pending_orders if o.created_at <= simulated_now]
 
         return templates.TemplateResponse(
             request=request,

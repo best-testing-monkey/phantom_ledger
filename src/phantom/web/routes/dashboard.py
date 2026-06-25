@@ -70,16 +70,33 @@ async def dashboard(request: Request, account: str | None = None, page: int = 1)
                     },
                 )
 
-        # Get open positions
-        positions = ph.positions.list(account_name=account_obj.name, status="open")
+        simulated_now = get_simulated_now()
 
-        # Get pending orders
-        pending_orders = ph.orders.list(account_name=account_obj.name, status="pending")
-
-        # Get closed trades with pagination
+        # All positions for this account
         all_positions = ph.positions.list(account_name=account_obj.name)
-        closed_trades = [p for p in all_positions if p.status == "closed" and p.exit_datetime]
-        all_closed = sorted(closed_trades, key=lambda p: p.exit_datetime, reverse=True)
+
+        if simulated_now:
+            # Only show positions whose entry predates simulated clock
+            visible = [p for p in all_positions if p.entry_datetime and p.entry_datetime <= simulated_now]
+            # Open at simulated_now: genuinely open, or closed with exit in the "future"
+            positions = [
+                p for p in visible
+                if p.status == "open"
+                or (p.status == "closed" and p.exit_datetime and p.exit_datetime > simulated_now)
+            ]
+            closed_at_now = [
+                p for p in visible
+                if p.status == "closed" and p.exit_datetime and p.exit_datetime <= simulated_now
+            ]
+            # Only pending orders created at or before simulated clock
+            all_pending = ph.orders.list(account_name=account_obj.name, status="pending")
+            pending_orders = [o for o in all_pending if o.created_at <= simulated_now]
+        else:
+            positions = ph.positions.list(account_name=account_obj.name, status="open")
+            pending_orders = ph.orders.list(account_name=account_obj.name, status="pending")
+            closed_at_now = [p for p in all_positions if p.status == "closed" and p.exit_datetime]
+
+        all_closed = sorted(closed_at_now, key=lambda p: p.exit_datetime, reverse=True)
         total_closed = len(all_closed)
         start = (page - 1) * PAGE_SIZE
         recent_trades = all_closed[start : start + PAGE_SIZE]
