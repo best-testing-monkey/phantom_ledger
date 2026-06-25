@@ -66,12 +66,15 @@ async def positions_rows(request: Request, account: str | None = Query(None)):
         else:
             positions = ph.positions.list(account_name=account_obj.name, status="open")
 
+        sim = get_simulated_now()
+        simulated_date = sim.date().isoformat() if sim else ""
         return templates.TemplateResponse(
             request=request,
             name="_positions_rows.html",
             context={
                 "positions": positions,
                 "account": account_obj,
+                "simulated_date": simulated_date,
             },
         )
 

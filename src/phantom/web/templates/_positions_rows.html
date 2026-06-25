@@ -10,18 +10,32 @@
         </td>
         <td>
             {% if position.status == "open" %}
-            <details>
+            <details ontoggle="
+              if(this.open){
+                var inp=this.querySelector('[name=exit_price]');
+                if(inp.value) return;
+                var url='/api/price?ticker={{ position.ticker }}{% if simulated_date %}&date={{ simulated_date }}{% endif %}';
+                fetch(url).then(r=>r.text()).then(html=>{
+                  var hint=this.querySelector('.price-hint');
+                  if(hint) hint.innerHTML=html;
+                  var m=html.match(/\$([\d.]+)/);
+                  if(m) inp.value=parseFloat(m[1]).toFixed(4);
+                });
+              }">
                 <summary style="cursor:pointer;color:#3498db;list-style:none;">Close ▾</summary>
                 <form method="post" action="/positions/{{ position.id }}/close"
-                      style="margin-top:0.5rem;display:flex;gap:0.5rem;align-items:center;">
-                    <input type="hidden" name="account" value="{{ account.name if account else '' }}">
-                    <input type="number" name="quantity" step="0.0001" min="0.0001"
-                           value="{{ position.quantity }}" placeholder="Qty to close" required
-                           style="width:100px;padding:0.3rem;margin-bottom:0;font-size:0.85rem;">
-                    <input type="number" name="exit_price" step="0.0001" min="0.0001"
-                           placeholder="Exit price" required
-                           style="width:130px;padding:0.3rem;margin-bottom:0;font-size:0.85rem;">
-                    <button type="submit" style="padding:0.3rem 0.75rem;font-size:0.85rem;">✓</button>
+                      style="margin-top:0.5rem;display:flex;flex-direction:column;gap:0.25rem;">
+                    <div style="display:flex;gap:0.5rem;align-items:center;">
+                        <input type="hidden" name="account" value="{{ account.name if account else '' }}">
+                        <input type="number" name="quantity" step="0.0001" min="0.0001"
+                               value="{{ position.quantity }}" placeholder="Qty" required
+                               style="width:90px;padding:0.3rem;margin-bottom:0;font-size:0.85rem;">
+                        <input type="number" name="exit_price" step="0.0001" min="0.0001"
+                               placeholder="Exit price" required
+                               style="width:120px;padding:0.3rem;margin-bottom:0;font-size:0.85rem;">
+                        <button type="submit" style="padding:0.3rem 0.75rem;font-size:0.85rem;">✓</button>
+                    </div>
+                    <span class="price-hint" style="font-size:0.8rem;color:#7f8c8d;"></span>
                 </form>
             </details>
             {% endif %}

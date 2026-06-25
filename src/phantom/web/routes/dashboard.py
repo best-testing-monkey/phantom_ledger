@@ -130,7 +130,8 @@ async def dashboard(request: Request, account: str | None = None, page: int = 1)
                 "total_unrealized": total_unrealized,
                 "report": report,
                 "no_accounts": False,
-                "simulated_now": get_simulated_now(),
+                "simulated_now": simulated_now,
+                "simulated_date": simulated_now.date().isoformat() if simulated_now else "",
             },
         )
 
