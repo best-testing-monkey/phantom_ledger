@@ -82,32 +82,33 @@
             {% if not trades %}
                 <p class="neutral">No closed trades yet.</p>
             {% else %}
+                {% set realized_pnl = trades.gross_profit + trades.gross_loss %}
                 <div class="summary-grid" style="grid-template-columns: repeat(3, 1fr);">
                     <div class="summary-card">
                         <div class="label">Realized P&L</div>
-                        <div class="value {% if trades.get('gross_profit', 0) + trades.get('gross_loss', 0) >= 0 %}positive{% else %}negative{% endif %}">
-                            {{ "%.2f"|format(trades.get('gross_profit', 0) + trades.get('gross_loss', 0)) }}
+                        <div class="value {% if realized_pnl >= 0 %}positive{% else %}negative{% endif %}">
+                            {{ "%.2f"|format(realized_pnl) }}
                         </div>
                     </div>
                     <div class="summary-card">
                         <div class="label">Trades</div>
-                        <div class="value">{{ trades.get('trade_count', 0) }}</div>
+                        <div class="value">{{ trades.trade_count }}</div>
                     </div>
                     <div class="summary-card">
                         <div class="label">Win Rate</div>
-                        <div class="value">{{ "%.1f"|format(trades.get('win_rate_pct', 0)) }}%</div>
+                        <div class="value">{{ "%.1f"|format(trades.win_rate_pct) }}%</div>
                     </div>
                     <div class="summary-card">
                         <div class="label">Avg Win</div>
-                        <div class="value positive">{{ "%.2f"|format(trades.get('avg_win', 0)) }}</div>
+                        <div class="value positive">{{ "%.2f"|format(trades.avg_win) }}</div>
                     </div>
                     <div class="summary-card">
                         <div class="label">Avg Loss</div>
-                        <div class="value negative">{{ "%.2f"|format(trades.get('avg_loss', 0)) }}</div>
+                        <div class="value negative">{{ "%.2f"|format(trades.avg_loss) }}</div>
                     </div>
                     <div class="summary-card">
                         <div class="label">Profit Factor</div>
-                        <div class="value">{{ "%.2f"|format(trades.get('profit_factor', 0)) }}</div>
+                        <div class="value">{% if trades.profit_factor == trades.profit_factor and trades.profit_factor < 1e308 %}{{ "%.2f"|format(trades.profit_factor) }}{% else %}∞{% endif %}</div>
                     </div>
                 </div>
             {% endif %}
