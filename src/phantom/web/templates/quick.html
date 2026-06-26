@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+
+{% block title %}Quick — Phantom Ledger{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* full-width override for this page */
+    body > .container {
+        max-width: none;
+        padding: 0.5rem 1rem;
+        margin: 0.75rem auto;
+    }
+
+    .quick-header {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 1rem;
+        align-items: end;
+        margin-bottom: 0.75rem;
+        background: white;
+        border-radius: 4px;
+        padding: 0.75rem 1rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .quick-header .qh-center { text-align: center; }
+    .quick-header .qh-right  { text-align: right; }
+
+    .quick-header label {
+        font-size: 0.8rem;
+        margin-bottom: 0.2rem;
+    }
+
+    .quick-header input[type="date"],
+    .quick-header select {
+        margin-bottom: 0;
+        padding: 0.4rem 0.6rem;
+        font-size: 0.9rem;
+    }
+
+    .quick-header .qh-center select { width: auto; }
+
+    .quick-chart-wrap {
+        height: 33vh;
+        position: relative;
+        background: white;
+        border-radius: 4px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.75rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .quick-table-wrap {
+        overflow-x: auto;
+        background: white;
+        border-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .quick-table {
+        width: max-content;
+        min-width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+        margin-top: 0;
+    }
+
+    .quick-table th {
+        background-color: #ecf0f1;
+        padding: 0.4rem 0.5rem;
+        text-align: left;
+        font-weight: 600;
+        border-bottom: 2px solid #bdc3c7;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+    .quick-table td {
+        padding: 2px 3px;
+        border-bottom: 1px solid #ecf0f1;
+        vertical-align: middle;
+    }
+
+    .quick-table tr:hover td { background-color: #f9f9f9; }
+
+    .quick-table input,
+    .quick-table select {
+        padding: 1px 3px;
+        margin: 0;
+        font-size: 0.75rem;
+        border: 1px solid #ccc;
+        border-radius: 2px;
+        box-sizing: border-box;
+        background: white;
+    }
+
+    .quick-table input[type="datetime-local"] { width: 130px; }
+    .quick-table input[type="number"]          { width: 7ch; }
+    .quick-table input[type="text"]            { width: 9ch; }
+    .quick-table input[name$="_datetime"], 
+    .quick-table input[name="new_created_at"], 
+    .quick-table input[name="new_entry_dt"], 
+    .quick-table input[name="new_exit_dt"], 
+    .quick-table input[name="new_created_at"], 
+    .quick-table input[name="new_max_close"], 
+    .quick-table input[name="created_at"], 
+    .quick-table input[name$="good_til"]  { width: 17ch; }
+    .quick-table select                        { width: auto; }
+
+    /* readonly cells */
+    .quick-table td.neutral { color: #7f8c8d; font-size: 0.75rem; }
+
+    /* new-row highlight */
+    #quick-new-row td { background-color: #f0f8ff; }
+    #quick-new-row td input,
+    #quick-new-row td select { background: #f0f8ff; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if no_accounts %}
+    <div class="card">
+        <h2>No Accounts Found</h2>
+        <p>Create one first: <code>phantom account create --name "My Account" --type manual --broker "..." --capital 10000</code></p>
+    </div>
+{% else %}
+
+{# ── Header filters ──────────────────────────────────────────────────────── #}
+<form method="GET" action="/quick" id="quick-filters">
+    <div class="quick-header">
+        <div>
+            <label>From</label>
+            <input type="date" name="start" value="{{ start }}" onchange="document.getElementById('quick-filters').submit()">
+        </div>
+        <div class="qh-center">
+            <label>Account</label>
+            {% if accounts and accounts|length > 1 %}
+            <select name="account" onchange="document.getElementById('quick-filters').submit()">
+                {% for a in accounts %}
+                <option value="{{ a.name }}" {% if account and a.id == account.id %}selected{% endif %}>{{ a.name }}</option>
+                {% endfor %}
+            </select>
+            {% elif account %}
+            <input type="hidden" name="account" value="{{ account.name }}">
+            <span style="font-weight:600;">{{ account.name }}</span>
+            {% endif %}
+        </div>
+        <div class="qh-right">
+            <label>To</label>
+            <input type="date" name="end" value="{{ end }}" onchange="document.getElementById('quick-filters').submit()">
+        </div>
+    </div>
+</form>
+
+{# ── Equity chart ─────────────────────────────────────────────────────────── #}
+<div class="quick-chart-wrap">
+    <canvas id="quick-equity-chart"></canvas>
+    <p id="quick-chart-empty" class="neutral" style="display:none;padding:0.5rem 0;">No equity data. Use "Rebuild equity" to generate it.</p>
+    <button id="rebuild-equity-btn"
+            style="position:absolute;top:0.5rem;right:0.75rem;font-size:0.75rem;padding:0.25rem 0.6rem;"
+            onclick="rebuildEquity(this)">Rebuild equity</button>
+</div>
+
+{# ── Orders table ─────────────────────────────────────────────────────────── #}
+<div class="quick-table-wrap">
+    <table class="quick-table">
+        <thead>
+            <tr>
+                <th>created_at</th>
+                <th>entry_datetime</th>
+                <th>entry_price</th>
+                <th>exit_datetime</th>
+                <th>exit_price</th>
+                <th>ticker</th>
+                <th>instrument_type</th>
+                <th>direction</th>
+                <th>order_type</th>
+                <th>quantity</th>
+                <th>limit_price</th>
+                <th>stop_price</th>
+                <th>trailing_amount</th>
+                <th>trailing_pct</th>
+                <th>take_profit</th>
+                <th>stop_loss</th>
+                <th>fill_price</th>
+                <th>good_til</th>
+                <th>max_close_datetime</th>
+                <th>status</th>
+                <th>triggered_at</th>
+                <th>filled_at</th>
+                <th>rejection_reason</th>
+                <th>action</th>
+            </tr>
+        </thead>
+        <tbody id="quick-tbody">
+            {% include "_quick_rows.html" %}
+        </tbody>
+    </table>
+</div>
+
+<datalist id="quick-ticker-list">
+    {% for t in tickers %}<option value="{{ t }}">{% endfor %}
+</datalist>
+
+<script>
+(function () {
+    const ACCOUNT = {{ account.name|tojson }};
+    const START   = {{ start|tojson }};
+    const END     = {{ end|tojson }};
+    const API_URL = `/api/quick/equity-data?account=${encodeURIComponent(ACCOUNT)}&start=${START}&end=${END}`;
+
+    let chart = null;
+
+    function fmtDate(ms) {
+        const d = new Date(ms);
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(d.getUTCDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+    }
+
+    async function drawChart() {
+        const resp = await fetch(API_URL);
+        const data = await resp.json();
+        const curve   = data.equity_curve || [];
+        const markers = data.markers || [];
+
+        const canvas = document.getElementById("quick-equity-chart");
+        const empty  = document.getElementById("quick-chart-empty");
+
+        if (!canvas) return;
+
+        if (curve.length < 2) {
+            canvas.style.display = "none";
+            empty.style.display  = "block";
+            if (chart) { chart.destroy(); chart = null; }
+            return;
+        }
+
+        canvas.style.display = "block";
+        empty.style.display  = "none";
+
+        const entryPts = markers.filter(m => m.type === "entry").map(m => ({ x: m.x, y: m.y, meta: m }));
+        const exitPts  = markers.filter(m => m.type === "exit").map(m => ({ x: m.x, y: m.y, meta: m }));
+
+        const datasets = [
+            {
+                type: "line",
+                label: "Equity",
+                data: curve,
+                borderColor: "#2980b9",
+                backgroundColor: "rgba(41,128,185,0.08)",
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                borderWidth: 2,
+                tension: 0,
+                fill: true,
+                order: 10,
+            },
+            {
+                type: "scatter",
+                label: "Entry",
+                data: entryPts,
+                pointStyle: "triangle",
+                rotation: 0,
+                pointRadius: 7,
+                pointHoverRadius: 9,
+                backgroundColor: "#f39c12",
+                borderColor: "#d68910",
+                borderWidth: 1,
+                order: 1,
+            },
+            {
+                type: "scatter",
+                label: "Exit",
+                data: exitPts,
+                pointStyle: "triangle",
+                rotation: 180,
+                pointRadius: 7,
+                pointHoverRadius: 9,
+                backgroundColor: exitPts.map(p => (p.meta.pnl >= 0 ? "#27ae60" : "#e74c3c")),
+                borderColor:     exitPts.map(p => (p.meta.pnl >= 0 ? "#1e8449" : "#c0392b")),
+                borderWidth: 1,
+                order: 1,
+            },
+        ];
+
+        if (chart) { chart.destroy(); }
+
+        chart = new Chart(canvas, {
+            type: "scatter",
+            data: { datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => {
+                                const dt = fmtDate(ctx.parsed.x);
+                                const eq = ctx.parsed.y.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                const m = ctx.raw.meta;
+                                if (!m) return `Equity  ${dt}  ${eq}`;
+                                if (m.type === "entry") return `${m.ticker} entry  ${dt}  ${eq}`;
+                                const sign = m.pnl >= 0 ? "+" : "";
+                                return `${m.ticker} exit  ${dt}  ${eq}  P&L ${sign}${m.pnl.toFixed(2)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: "linear",
+                        min: new Date(START + "T00:00:00Z").getTime(),
+                        max: new Date(END   + "T23:59:59Z").getTime(),
+                        ticks: {
+                            callback: val => fmtDate(val),
+                            maxTicksLimit: 12,
+                        },
+                    },
+                    y: {
+                        beginAtZero: false,
+                        ticks: {
+                            callback: val => val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
+                        },
+                        title: { display: true, text: "Equity" },
+                    },
+                },
+            },
+        });
+    }
+
+    drawChart();
+
+    // Refresh chart when any HTMX recalculate fires equityRefresh
+    document.body.addEventListener("equityRefresh", drawChart);
+
+    // New-row creation — delegated so it survives HTMX tbody innerHTML swaps
+    const NEW_ROW_FIELDS = ["new_ticker", "new_direction", "new_order_type", "new_quantity"];
+
+    function tryCreate() {
+        const newRow = document.getElementById("quick-new-row");
+        if (!newRow) return;
+        const ticker     = newRow.querySelector("[name='new_ticker']").value.trim();
+        const direction  = newRow.querySelector("[name='new_direction']").value;
+        const order_type = newRow.querySelector("[name='new_order_type']").value;
+        const quantity   = parseFloat(newRow.querySelector("[name='new_quantity']").value || "0");
+        const entry_datetime = newRow.querySelector("[name='new_entry_dt']").value.trim();
+        const exit_datetime  = newRow.querySelector("[name='new_exit_dt']").value.trim();
+        if (ticker && direction && order_type && quantity > 0) {
+            htmx.ajax("POST", "/api/quick/order", {
+                target: "#quick-tbody",
+                swap: "innerHTML",
+                values: { ticker, direction, order_type, quantity, account: ACCOUNT, start: START, end: END, entry_datetime, exit_datetime }
+            });
+        }
+    }
+
+    document.getElementById("quick-tbody").addEventListener("change", function (e) {
+        const newRow = document.getElementById("quick-new-row");
+        if (newRow && newRow.contains(e.target) && NEW_ROW_FIELDS.includes(e.target.name)) {
+            tryCreate();
+        }
+    });
+
+    document.getElementById("quick-tbody").addEventListener("click", function (e) {
+        if (e.target.id === "quick-save-btn") tryCreate();
+    });
+
+    window.rebuildEquity = async function(btn) {
+        btn.disabled = true;
+        btn.textContent = "Rebuilding…";
+        try {
+            const resp = await fetch(
+                `/api/quick/rebuild-equity?account=${encodeURIComponent(ACCOUNT)}`,
+                { method: "POST" }
+            );
+            const data = await resp.json();
+            if (data.status === "ok") {
+                btn.textContent = `Done (${data.points} pts)`;
+                await drawChart();
+            } else {
+                btn.textContent = "Error";
+                console.error(data.detail);
+            }
+        } catch (e) {
+            btn.textContent = "Error";
+            console.error(e);
+        } finally {
+            setTimeout(() => { btn.disabled = false; btn.textContent = "Rebuild equity"; }, 3000);
+        }
+    };
+})();
+</script>
+
+{% endif %}
+{% endblock %}

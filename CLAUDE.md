@@ -123,6 +123,9 @@ Every command: `try` → `get_phantom()` → call API → format with Rich → `
 ### Imports
 Always absolute (`from phantom.models.account import Account`). Never relative. Groups: stdlib → third-party → internal, separated by blank lines.
 
+### Date / datetime display format
+Dates are displayed as `YYYY-MM-DD`. Datetimes are displayed as `YYYY-MM-DD HH:mm`. Apply this in all web templates, chart tooltips, and any CLI output that renders dates to the user.
+
 ## Build Order (MVP)
 
 E1 Scaffolding → E2 Broker Profiles → E3 Cost Engine (MVP) → E4 Data Layer → E5 Accounts → E6 Orders → E7 Positions → E9 Simulation Engine → E10 Replay → E11 Notes → E12 Reporting → E17 Library API surface + CLI wiring

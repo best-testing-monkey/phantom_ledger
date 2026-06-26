@@ -57,3 +57,8 @@ force-sort-within-sections = true
 
 [tool.uv.sources]
 price-cache = { path = "src/phantom/data/price_cache", editable = true }
+
+[dependency-groups]
+dev = [
+    "playwright>=1.60.0",
+]

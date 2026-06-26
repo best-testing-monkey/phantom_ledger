@@ -34,7 +34,7 @@ def create_app() -> FastAPI:
 
     # Register routers
     from phantom.web.routes import api as api_routes
-    from phantom.web.routes import brokers, clock, dashboard, orders, positions, simulation
+    from phantom.web.routes import brokers, clock, dashboard, orders, positions, quick, simulation
 
     app.include_router(dashboard.router)
     app.include_router(clock.router)
@@ -42,6 +42,7 @@ def create_app() -> FastAPI:
     app.include_router(orders.router)
     app.include_router(brokers.router)
     app.include_router(simulation.router)
+    app.include_router(quick.router)
     app.include_router(api_routes.router)
 
     return app

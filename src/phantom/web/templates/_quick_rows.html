@@ -1,0 +1,161 @@
+{% macro qhx(order_id, field) -%}
+hx-put="/api/quick/row/{{ order_id }}" name="{{ field }}" hx-vals='{"field": "{{ field }}", "account": {{ account.name|tojson }}, "start": {{ start|tojson }}, "end": {{ end|tojson }}}' hx-trigger="change" hx-target="#quick-tbody" hx-swap="innerHTML"
+{%- endmacro %}
+
+{% macro dt_input(order_id, field, value) %}
+<input type="text" placeholder="YYYY-MM-DD HH:mm" {{ qhx(order_id, field) }} value="{{ value.strftime('%Y-%m-%d %H:%M') if value else '' }}">
+{% endmacro %}
+
+{% macro num_input(order_id, field, value, step="0.0001") %}
+<input type="number" step="{{ step }}" {{ qhx(order_id, field) }} value="{{ value if value is not none else '' }}">
+{% endmacro %}
+
+{% macro sel(order_id, field, options, value) %}
+<select {{ qhx(order_id, field) }}>
+    <option value=""></option>
+    {% for o in options %}<option value="{{ o }}" {% if o == value %}selected{% endif %}>{{ o }}</option>{% endfor %}
+</select>
+{% endmacro %}
+
+{% for row in rows %}
+<tr>
+    {# created_at — editable, also syncs entry_datetime #}
+    <td>{{ dt_input(row.order_id, 'created_at', row.created_at) }}</td>
+
+    {# entry_datetime — editable position field #}
+    <td>{{ dt_input(row.order_id, 'entry_datetime', row.entry_datetime) }}</td>
+
+    {# entry_price — readonly auto-set #}
+    <td class="neutral" style="white-space:nowrap;">
+        {% if row.entry_price is not none %}{{ "%.4f"|format(row.entry_price) }}{% else %}—{% endif %}
+    </td>
+
+    {# exit_datetime — editable position field #}
+    <td>{{ dt_input(row.order_id, 'exit_datetime', row.exit_datetime) }}</td>
+
+    {# exit_price — readonly auto-set #}
+    <td class="neutral" style="white-space:nowrap;">
+        {% if row.exit_price is not none %}{{ "%.4f"|format(row.exit_price) }}{% else %}—{% endif %}
+    </td>
+
+    {# ticker — combobox #}
+    <td>
+        <input type="text" list="quick-ticker-list" {{ qhx(row.order_id, 'ticker') }} value="{{ row.ticker }}">
+    </td>
+
+    {# instrument_type #}
+    <td>{{ sel(row.order_id, 'instrument_type', ['stock', 'cfd'], row.instrument_type) }}</td>
+
+    {# direction #}
+    <td>{{ sel(row.order_id, 'direction', ['long', 'short'], row.direction) }}</td>
+
+    {# order_type #}
+    <td>{{ sel(row.order_id, 'order_type', ['market', 'limit', 'stop', 'stop_limit', 'trailing_stop', 'oco'], row.order_type) }}</td>
+
+    {# quantity #}
+    <td>{{ num_input(row.order_id, 'quantity', row.quantity, '0.01') }}</td>
+
+    {# limit_price #}
+    <td>{{ num_input(row.order_id, 'limit_price', row.limit_price) }}</td>
+
+    {# stop_price #}
+    <td>{{ num_input(row.order_id, 'stop_price', row.stop_price) }}</td>
+
+    {# trailing_amount #}
+    <td>{{ num_input(row.order_id, 'trailing_amount', row.trailing_amount) }}</td>
+
+    {# trailing_pct #}
+    <td>{{ num_input(row.order_id, 'trailing_pct', row.trailing_pct) }}</td>
+
+    {# take_profit #}
+    <td>{{ num_input(row.order_id, 'take_profit', row.take_profit) }}</td>
+
+    {# stop_loss #}
+    <td>{{ num_input(row.order_id, 'stop_loss', row.stop_loss) }}</td>
+
+    {# fill_price #}
+    <td>{{ num_input(row.order_id, 'fill_price', row.fill_price) }}</td>
+
+    {# good_til #}
+    <td>{{ dt_input(row.order_id, 'good_til', row.good_til) }}</td>
+
+    {# max_close_datetime #}
+    <td>{{ dt_input(row.order_id, 'max_close_datetime', row.max_close_datetime) }}</td>
+
+    {# status — readonly #}
+    <td class="neutral">{{ row.status }}</td>
+
+    {# triggered_at — readonly #}
+    <td class="neutral" style="white-space:nowrap;">
+        {{ row.triggered_at.strftime('%Y-%m-%d %H:%M') if row.triggered_at else '—' }}
+    </td>
+
+    {# filled_at — readonly #}
+    <td class="neutral" style="white-space:nowrap;">
+        {{ row.filled_at.strftime('%Y-%m-%d %H:%M') if row.filled_at else '—' }}
+    </td>
+
+    {# rejection_reason — readonly #}
+    <td class="neutral">{{ row.rejection_reason or '—' }}</td>
+
+    {# action — delete #}
+    <td>
+        <button
+            hx-delete="/api/quick/row/{{ row.order_id }}?account={{ account.name|urlencode }}&start={{ start }}&end={{ end }}"
+            hx-target="#quick-tbody"
+            hx-swap="innerHTML"
+            hx-confirm="Delete this order?"
+            style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0 4px;">❌</button>
+    </td>
+</tr>
+{% endfor %}
+
+{# blank new-entry row #}
+<tr id="quick-new-row">
+    <td><input type="text" name="new_created_at" placeholder="YYYY-MM-DD HH:mm"></td>
+    <td><input type="text" name="new_entry_dt" placeholder="YYYY-MM-DD HH:mm"></td>
+    <td class="neutral">—</td>
+    <td><input type="text" name="new_exit_dt" placeholder="YYYY-MM-DD HH:mm"></td>
+    <td class="neutral">—</td>
+    <td><input type="text" list="quick-ticker-list" name="new_ticker" placeholder="AAPL"></td>
+    <td>
+        <select name="new_instrument_type">
+            <option value="stock" selected>stock</option>
+            <option value="cfd">cfd</option>
+        </select>
+    </td>
+    <td>
+        <select name="new_direction">
+            <option value="">—</option>
+            <option value="long">long</option>
+            <option value="short">short</option>
+        </select>
+    </td>
+    <td>
+        <select name="new_order_type">
+            <option value="">—</option>
+            <option value="market">market</option>
+            <option value="limit">limit</option>
+            <option value="stop">stop</option>
+            <option value="stop_limit">stop_limit</option>
+            <option value="trailing_stop">trailing_stop</option>
+            <option value="oco">oco</option>
+        </select>
+    </td>
+    <td><input type="number" step="0.01" name="new_quantity" placeholder="0"></td>
+    <td><input type="number" step="0.0001" name="new_limit_price" placeholder=""></td>
+    <td><input type="number" step="0.0001" name="new_stop_price" placeholder=""></td>
+    <td><input type="number" step="0.0001" name="new_trailing_amount" placeholder=""></td>
+    <td><input type="number" step="0.01" name="new_trailing_pct" placeholder=""></td>
+    <td><input type="number" step="0.0001" name="new_take_profit" placeholder=""></td>
+    <td><input type="number" step="0.0001" name="new_stop_loss" placeholder=""></td>
+    <td><input type="number" step="0.0001" name="new_fill_price" placeholder=""></td>
+    <td><input type="text" name="new_good_til" placeholder="YYYY-MM-DD HH:mm"></td>
+    <td><input type="text" name="new_max_close" placeholder="YYYY-MM-DD HH:mm"></td>
+    <td class="neutral">—</td>
+    <td class="neutral">—</td>
+    <td class="neutral">—</td>
+    <td class="neutral">—</td>
+    <td><button id="quick-save-btn" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0 4px;" title="Save">✅</button></td>
+</tr>
+
