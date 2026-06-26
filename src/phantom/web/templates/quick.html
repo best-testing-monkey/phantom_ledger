@@ -337,8 +337,16 @@
 
     drawChart();
 
-    // Refresh chart when any HTMX recalculate fires equityRefresh
-    document.body.addEventListener("equityRefresh", drawChart);
+    // Rebuild equity and refresh chart whenever an HTMX action fires equityRefresh
+    document.body.addEventListener("equityRefresh", async function () {
+        try {
+            await fetch(
+                `/api/quick/rebuild-equity?account=${encodeURIComponent(ACCOUNT)}`,
+                { method: "POST" }
+            );
+        } catch (_) {}
+        await drawChart();
+    });
 
     // New-row creation — delegated so it survives HTMX tbody innerHTML swaps
     const NEW_ROW_FIELDS = ["new_ticker", "new_direction", "new_order_type", "new_quantity"];
