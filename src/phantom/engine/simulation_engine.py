@@ -4,6 +4,8 @@ import signal
 import sqlite3
 from threading import Event
 
+import pandas as pd
+
 from phantom.costs.engine import CostEngine
 from phantom.data.provider import DataProvider
 from phantom.db.repositories.account_repo import AccountRepo
@@ -53,6 +55,80 @@ class SimulationEngine:
             dividend_log_repo=self._dividend_log_repo,
         )
 
+    # ------------------------------------------------------------------
+    # Shared multi-ticker helpers
+    #
+    # DataProvider.get_bars() is single-ticker only, so every one of
+    # run_backtest / run_paper / run_paper_tick needs to fetch bars once per
+    # ticker and then, at each timestep, evaluate orders/positions/equity
+    # against EACH ticker's OWN bar rather than one shared bar borrowed from
+    # tickers[0]. These helpers centralize that logic so the three methods
+    # don't each duplicate (and each separately risk re-breaking) it.
+    # ------------------------------------------------------------------
+
+    def _fetch_all_ticker_bars(
+        self, tickers: list[str], start: datetime, end: datetime
+    ) -> dict[str, pd.DataFrame]:
+        """Fetch bars for every ticker individually via DataProvider.get_bars().
+
+        Returns a dict of {ticker: DataFrame} containing only tickers that
+        actually returned non-empty data; empty results are logged and
+        skipped rather than raising.
+        """
+        ticker_bars: dict[str, pd.DataFrame] = {}
+        for ticker in tickers:
+            df = self._data_provider.get_bars(ticker, start, end)
+            if df is None or df.empty:
+                logger.warning(
+                    "No bars returned for ticker %s in range %s to %s; skipping",
+                    ticker,
+                    start,
+                    end,
+                )
+                continue
+            ticker_bars[ticker] = df
+        return ticker_bars
+
+    def _evaluate_pending_orders(
+        self, active_orders: list, bars_today: dict[str, pd.Series]
+    ) -> list:
+        """Group pending orders by ticker and evaluate each group against its
+        OWN ticker's bar (never against another ticker's bar).
+
+        Orders whose ticker has no bar this step are simply left pending —
+        they get re-evaluated on a later step once their ticker has data.
+        """
+        orders_by_ticker: dict[str, list] = {}
+        for order in active_orders:
+            orders_by_ticker.setdefault(order.ticker, []).append(order)
+
+        new_fills: list = []
+        for ticker, orders_for_ticker in orders_by_ticker.items():
+            bar = bars_today.get(ticker)
+            if bar is None:
+                continue
+            new_fills.extend(self._order_manager.evaluate(bar, orders_for_ticker))
+        return new_fills
+
+    @staticmethod
+    def _mark_to_market(
+        open_positions: list, last_close: dict[str, float]
+    ) -> tuple[float, float]:
+        """Compute market_value/unrealized P&L using each position's OWN
+        ticker's last known Close price (carry-forward), falling back to
+        entry_price only if that ticker was somehow never observed.
+        """
+        market_value = sum(
+            p.quantity * last_close.get(p.ticker, p.entry_price) for p in open_positions
+        )
+        unrealized = sum(
+            (last_close.get(p.ticker, p.entry_price) - p.entry_price) * p.quantity
+            if p.direction == "long"
+            else (p.entry_price - last_close.get(p.ticker, p.entry_price)) * p.quantity
+            for p in open_positions
+        )
+        return market_value, unrealized
+
     def run_backtest(
         self,
         account_id: str,
@@ -65,19 +141,37 @@ class SimulationEngine:
         if isinstance(end, str):
             end = parse_datetime(end)
 
-        ticker = tickers[0] if tickers else ""
-        price_data = self._data_provider.get_bars(ticker, start, end)
-        if price_data.empty:
+        ticker_bars = self._fetch_all_ticker_bars(tickers, start, end)
+        if not ticker_bars:
             account = self._account_repo.get(account_id)
             return BacktestResult(account=account)
 
-        clock = BacktestClock(price_data.index)
+        # Master trading-day index: union of every ticker's own index, so a
+        # day only one ticker trades (e.g. crypto on a weekend) still gets a
+        # clock step, without forcing every OTHER ticker to have a bar too.
+        master_index = pd.DatetimeIndex(
+            sorted(set().union(*(df.index for df in ticker_bars.values())))
+        )
+        clock = BacktestClock(master_index)
         filled_orders: list = []
         closed_positions: list = []
+        last_close: dict[str, float] = {}
 
         while not clock.is_done():
             current_time = clock.now()
-            bar = price_data.loc[price_data.index[clock._pos]]
+            # Use the raw index value (not the UTC-parsed current_time) for
+            # per-ticker lookups, since a ticker's own DataFrame index may not
+            # round-trip identically through parse_datetime(); this mirrors
+            # how the original single-ticker code indexed via
+            # `price_data.index[clock._pos]` rather than `current_time`.
+            raw_ts = master_index[clock._pos]
+
+            bars_today: dict[str, pd.Series] = {}
+            for ticker, df in ticker_bars.items():
+                if raw_ts in df.index:
+                    bar_for_ticker = df.loc[raw_ts]
+                    bars_today[ticker] = bar_for_ticker
+                    last_close[ticker] = float(bar_for_ticker["Close"])
 
             pending = self._order_repo.list_by_account(account_id, status="pending")
             active, expired = self._order_manager.expire_orders(pending, current_time)
@@ -85,7 +179,7 @@ class SimulationEngine:
             for exp_order in expired:
                 self._order_repo.update_status(exp_order.id, "expired")
 
-            new_fills = self._order_manager.evaluate(bar, active)
+            new_fills = self._evaluate_pending_orders(active, bars_today)
             for filled_order in new_fills:
                 filled_order_obj, position = self._order_manager.handle_fill(
                     filled_order, self._position_repo
@@ -97,7 +191,12 @@ class SimulationEngine:
 
             open_positions = self._position_repo.list_by_account(account_id, status="open")
             for position in open_positions:
-                result = self._position_manager.determine_close(position, bar)
+                bar_for_position = bars_today.get(position.ticker)
+                if bar_for_position is None:
+                    # No bar for this position's ticker today - defer to the
+                    # next step where its ticker has data.
+                    continue
+                result = self._position_manager.determine_close(position, bar_for_position)
                 if result is not None:
                     exit_price, close_reason = result
                     bar_ts = current_time
@@ -119,13 +218,7 @@ class SimulationEngine:
 
             open_positions = self._position_repo.list_by_account(account_id, status="open")
             account = self._account_repo.get(account_id)
-            market_value = sum(p.quantity * float(bar["Close"]) for p in open_positions)
-            unrealized = sum(
-                (float(bar["Close"]) - p.entry_price) * p.quantity
-                if p.direction == "long"
-                else (p.entry_price - float(bar["Close"])) * p.quantity
-                for p in open_positions
-            )
+            market_value, unrealized = self._mark_to_market(open_positions, last_close)
             equity = account.cash + market_value
             point = EquityPoint(
                 account_id=account_id,
@@ -163,6 +256,10 @@ class SimulationEngine:
             prev_bar_date: Previous bar's date (YYYY-MM-DD)
             current_bar_date: Current bar's date (YYYY-MM-DD)
             broker_profile: BrokerProfile with overnight model and rate source
+
+        Note: this operates on position.notional and a reference rate, never
+        on any bar's price, so it is not affected by the multi-ticker bar bug
+        (there is no "wrong ticker's price" it could pick up).
         """
         if prev_bar_date == current_bar_date:
             return
@@ -224,6 +321,10 @@ class SimulationEngine:
             open_positions: List of open positions
             bar_date: Current bar date (YYYY-MM-DD)
             broker_profile: BrokerProfile with dividend model
+
+        Note: this already calls self._data_provider.get_dividends() per
+        position.ticker (not a shared bar), so it was already correct with
+        respect to the multi-ticker bug and needed no changes here.
         """
         for position in open_positions:
             try:
@@ -271,7 +372,8 @@ class SimulationEngine:
         account,
         open_positions: list,
         broker_profile,
-        current_bar,
+        current_time: datetime,
+        last_close: dict[str, float] | None = None,
     ) -> list:
         """Check margin status and handle margin calls / stop-outs.
 
@@ -279,11 +381,22 @@ class SimulationEngine:
             account: Account to check
             open_positions: List of open positions
             broker_profile: BrokerProfile with margin settings
-            current_bar: Current price bar
+            current_time: Timestamp to use for any forced-close records
+                (previously derived from a single shared bar's .name; now
+                passed explicitly since there is no longer one shared bar).
+            last_close: Per-ticker last known Close price. Used so that, if a
+                stop-out cascade forces a position closed, its exit costs are
+                computed against ITS OWN ticker's price rather than a
+                borrowed price from a different ticker's bar. Defaults to an
+                empty dict (falls back to 0.0 per position, matching the
+                previous behavior's `current_bar.get("Close", 0.0)` default).
 
         Returns:
             Updated list of open positions (after any forced closes)
         """
+        if last_close is None:
+            last_close = {}
+
         if not open_positions:
             return open_positions
 
@@ -293,14 +406,6 @@ class SimulationEngine:
             return open_positions
 
         # Calculate market value
-        if hasattr(current_bar, "name"):
-            current_time = current_bar.name
-            if hasattr(current_time, "to_pydatetime"):
-                current_time = current_time.to_pydatetime()
-        else:
-            current_time = datetime.now(timezone.utc)
-
-        close_price = float(current_bar.get("Close", 0.0))
         open_position_market_value = sum(p.notional for p in open_positions)
 
         margin_status = self._margin_engine.check(
@@ -317,8 +422,10 @@ class SimulationEngine:
                 account_repo=self._account_repo,
             )
 
-            # Deduct exit costs and update account cash
+            # Deduct exit costs and update account cash, using each closed
+            # position's OWN ticker's last known Close price.
             for closed_pos in closed:
+                close_price = last_close.get(closed_pos.ticker, 0.0)
                 exit_costs = self._cost_engine.exit_costs(
                     price=close_price,
                     quantity=closed_pos.quantity,
@@ -385,6 +492,7 @@ class SimulationEngine:
         old_sigterm = signal.signal(signal.SIGTERM, signal_handler)
 
         prev_bar_date = None
+        last_close: dict[str, float] = {}
 
         try:
             while not stop_event.is_set():
@@ -392,25 +500,25 @@ class SimulationEngine:
                 current_time_str = to_iso(current_time)
                 bar_date = current_time_str.split("T")[0]
 
-                ticker = tickers[0] if tickers else None
-                if not ticker:
+                if not tickers:
                     logger.warning("No tickers specified for paper trading")
                     break
 
                 try:
-                    # Fetch current bar
-                    bar_data = self._data_provider.get_bars(
-                        ticker,
-                        parse_datetime(bar_date),
-                        parse_datetime(bar_date),
-                    )
+                    # Fetch current bar for every ticker
+                    bar_day = parse_datetime(bar_date)
+                    ticker_bars = self._fetch_all_ticker_bars(tickers, bar_day, bar_day)
 
-                    if bar_data.empty:
-                        logger.debug("No bars available for %s on %s", ticker, bar_date)
+                    if not ticker_bars:
+                        logger.debug("No bars available for %s on %s", tickers, bar_date)
                         clock.advance()
                         continue
 
-                    bar = bar_data.iloc[-1]
+                    bars_today: dict[str, pd.Series] = {}
+                    for ticker, df in ticker_bars.items():
+                        bar_for_ticker = df.iloc[-1]
+                        bars_today[ticker] = bar_for_ticker
+                        last_close[ticker] = float(bar_for_ticker["Close"])
 
                     # Evaluate pending orders
                     pending = self._order_repo.list_by_account(account_id, status="pending")
@@ -420,7 +528,7 @@ class SimulationEngine:
                         self._order_repo.update_status(exp_order.id, "expired")
                         logger.info("Order %s expired", exp_order.id)
 
-                    new_fills = self._order_manager.evaluate(bar, active)
+                    new_fills = self._evaluate_pending_orders(active, bars_today)
                     for filled_order in new_fills:
                         filled_order_obj, position = self._order_manager.handle_fill(
                             filled_order, self._position_repo
@@ -456,7 +564,12 @@ class SimulationEngine:
 
                     # Update positions and check TP/SL
                     for position in open_positions:
-                        result = self._position_manager.determine_close(position, bar)
+                        bar_for_position = bars_today.get(position.ticker)
+                        if bar_for_position is None:
+                            continue
+                        result = self._position_manager.determine_close(
+                            position, bar_for_position
+                        )
                         if result is not None:
                             exit_price, close_reason = result
                             closed = self._position_manager.close(
@@ -483,19 +596,13 @@ class SimulationEngine:
                     open_positions = self._position_repo.list_by_account(account_id, status="open")
                     account = self._account_repo.get(account_id)
                     open_positions = self._check_margin(
-                        account, open_positions, broker_profile, bar
+                        account, open_positions, broker_profile, current_time, last_close
                     )
 
                     # Record equity point
                     account = self._account_repo.get(account_id)
                     open_positions = self._position_repo.list_by_account(account_id, status="open")
-                    market_value = sum(p.quantity * float(bar["Close"]) for p in open_positions)
-                    unrealized = sum(
-                        (float(bar["Close"]) - p.entry_price) * p.quantity
-                        if p.direction == "long"
-                        else (p.entry_price - float(bar["Close"])) * p.quantity
-                        for p in open_positions
-                    )
+                    market_value, unrealized = self._mark_to_market(open_positions, last_close)
                     equity = account.cash + market_value
                     point = EquityPoint(
                         account_id=account_id,
@@ -557,24 +664,25 @@ class SimulationEngine:
         current_time_str = to_iso(current_time)
         bar_date = current_time_str.split("T")[0]
 
-        ticker = tickers[0] if tickers else None
-        if not ticker:
+        if not tickers:
             logger.warning("No tickers specified for paper trading")
             return
 
         try:
-            # Fetch current bar
-            bar_data = self._data_provider.get_bars(
-                ticker,
-                parse_datetime(bar_date),
-                parse_datetime(bar_date),
-            )
+            # Fetch current bar for every ticker
+            bar_day = parse_datetime(bar_date)
+            ticker_bars = self._fetch_all_ticker_bars(tickers, bar_day, bar_day)
 
-            if bar_data.empty:
-                logger.debug("No bars available for %s on %s", ticker, bar_date)
+            if not ticker_bars:
+                logger.debug("No bars available for %s on %s", tickers, bar_date)
                 return
 
-            bar = bar_data.iloc[-1]
+            bars_today: dict[str, pd.Series] = {}
+            last_close: dict[str, float] = {}
+            for ticker, df in ticker_bars.items():
+                bar_for_ticker = df.iloc[-1]
+                bars_today[ticker] = bar_for_ticker
+                last_close[ticker] = float(bar_for_ticker["Close"])
 
             # Evaluate pending orders
             pending = self._order_repo.list_by_account(account_id, status="pending")
@@ -584,7 +692,7 @@ class SimulationEngine:
                 self._order_repo.update_status(exp_order.id, "expired")
                 logger.info("Order %s expired", exp_order.id)
 
-            new_fills = self._order_manager.evaluate(bar, active)
+            new_fills = self._evaluate_pending_orders(active, bars_today)
             for filled_order in new_fills:
                 filled_order_obj, position = self._order_manager.handle_fill(
                     filled_order, self._position_repo
@@ -625,7 +733,10 @@ class SimulationEngine:
 
             # Update positions and check TP/SL
             for position in open_positions:
-                result = self._position_manager.determine_close(position, bar)
+                bar_for_position = bars_today.get(position.ticker)
+                if bar_for_position is None:
+                    continue
+                result = self._position_manager.determine_close(position, bar_for_position)
                 if result is not None:
                     exit_price, close_reason = result
                     closed = self._position_manager.close(
@@ -651,18 +762,14 @@ class SimulationEngine:
             # Check margin and handle stop-outs
             open_positions = self._position_repo.list_by_account(account_id, status="open")
             account = self._account_repo.get(account_id)
-            open_positions = self._check_margin(account, open_positions, broker_profile, bar)
+            open_positions = self._check_margin(
+                account, open_positions, broker_profile, current_time, last_close
+            )
 
             # Record equity point
             account = self._account_repo.get(account_id)
             open_positions = self._position_repo.list_by_account(account_id, status="open")
-            market_value = sum(p.quantity * float(bar["Close"]) for p in open_positions)
-            unrealized = sum(
-                (float(bar["Close"]) - p.entry_price) * p.quantity
-                if p.direction == "long"
-                else (p.entry_price - float(bar["Close"])) * p.quantity
-                for p in open_positions
-            )
+            market_value, unrealized = self._mark_to_market(open_positions, last_close)
             equity = account.cash + market_value
             point = EquityPoint(
                 account_id=account_id,
