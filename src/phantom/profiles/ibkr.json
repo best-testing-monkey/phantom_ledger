@@ -8,13 +8,8 @@
         "fx_base_currency": "USD"
     },
     "commission": {
-        "model_type": "tiered",
-        "tiers": [
-            {"min_volume": 0.0, "max_volume": 100000.0, "per_share": 0.005},
-            {"min_volume": 100000.0, "max_volume": 500000.0, "per_share": 0.004},
-            {"min_volume": 500000.0, "max_volume": 1000000.0, "per_share": 0.003},
-            {"min_volume": 1000000.0, "max_volume": null, "per_share": 0.002}
-        ],
+        "model_type": "per_share",
+        "per_share": 0.005,
         "per_share_min": 1.0,
         "per_share_max_pct": 0.1
     },

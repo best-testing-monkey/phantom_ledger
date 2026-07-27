@@ -83,3 +83,22 @@ def test_load_profile_degiro():
     assert profile.commission.model_type == "fixed"
     assert profile.spread.model_type == "dynamic"
     assert profile.fx_base_currency == "EUR"
+
+
+def test_load_profile_ibkr_commission_is_nonzero():
+    # Regression test for a bug where ibkr.json's commission block used a
+    # min_volume/max_volume/per_share schema that doesn't match the
+    # "tiered" model_type's expected up_to/rate keys. CommissionModel.calculate()
+    # silently fell back to tier.get("rate", 0.0) == 0.0 for every trade,
+    # meaning every simulated IBKR trade paid zero commission. The fix
+    # switched the profile to model_type "per_share" (which IBKR's real
+    # per-share fee structure actually matches) with a flat rate. This test
+    # loads the real bundled ibkr.json so it would have caught the bug.
+    profile_path = (
+        Path(__file__).parent.parent.parent / "src" / "phantom" / "profiles" / "ibkr.json"
+    )
+    profile = load_profile(profile_path)
+    assert profile.name == "IBKR"
+    assert profile.commission.model_type == "per_share"
+    commission = profile.commission.calculate(quantity=100, price=50.0, monthly_volume=0)
+    assert commission > 0.0
