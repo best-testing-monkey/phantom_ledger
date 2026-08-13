@@ -119,7 +119,16 @@ def calculate_metrics(
     days = (equity_curve[-1].timestamp - equity_curve[0].timestamp).days
     years = days / 365.25
     total_return = (final / initial - 1) * 100
-    cagr = ((final / initial) ** (1 / years) - 1) * 100 if years > 0 else 0.0
+    # A leveraged/margin equity curve can go to or below zero (final <= 0),
+    # not just toward it -- (final / initial) is then <= 0, and raising a
+    # non-positive base to the non-integer exponent (1 / years) returns a
+    # Python complex number, which later fails EquityMetrics' float
+    # validation. Total wipeout (or worse) is -100% CAGR by convention;
+    # only compute the real power when the base is actually positive.
+    if final <= 0:
+        cagr = -100.0
+    else:
+        cagr = ((final / initial) ** (1 / years) - 1) * 100 if years > 0 else 0.0
     peak = initial
     peak_ts = equity_curve[0].timestamp
     max_dd = 0.0

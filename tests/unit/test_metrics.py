@@ -34,6 +34,29 @@ class TestCalculateMetrics:
         with pytest.raises(ValidationError):
             calculate_metrics([EquityPoint(datetime(2025, 1, 1, tzinfo=timezone.utc), 10000.0)])
 
+    def test_wipeout_curve_gives_real_cagr_not_complex(self):
+        # A leveraged/margin account can end at or below zero equity, not
+        # just approach it. (final / initial) is then <= 0, and a naive
+        # fractional power there returns a Python complex number, which
+        # crashes EquityMetrics' float validation (see calculate_metrics'
+        # comment). -100% CAGR is the correct value for a total wipeout.
+        curve = [
+            EquityPoint(datetime(2025, 1, 1, tzinfo=timezone.utc), 10000.0),
+            EquityPoint(datetime(2025, 7, 1, tzinfo=timezone.utc), 0.0),
+        ]
+        metrics = calculate_metrics(curve)
+        assert metrics.cagr_pct == pytest.approx(-100.0)
+        assert isinstance(metrics.cagr_pct, float)
+
+    def test_negative_equity_curve_gives_real_cagr_not_complex(self):
+        curve = [
+            EquityPoint(datetime(2025, 1, 1, tzinfo=timezone.utc), 10000.0),
+            EquityPoint(datetime(2025, 7, 1, tzinfo=timezone.utc), -50.0),
+        ]
+        metrics = calculate_metrics(curve)
+        assert metrics.cagr_pct == pytest.approx(-100.0)
+        assert isinstance(metrics.cagr_pct, float)
+
     def test_known_sequence(self):
         curve = [
             EquityPoint(datetime(2025, 1, 1, tzinfo=timezone.utc), 10000.0),
