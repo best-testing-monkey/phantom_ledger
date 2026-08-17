@@ -53,13 +53,22 @@ class HistoricalProvider:
             df.index = df.index.tz_localize("America/New_York")
         df.index = df.index.tz_convert("UTC")
 
-        start_ts = pd.Timestamp(start, tz="UTC")
-        end_ts = pd.Timestamp(end, tz="UTC")
+        start_ts = pd.Timestamp(start)
+        if start_ts.tzinfo is None:
+            start_ts = start_ts.tz_localize("UTC")
+        else:
+            start_ts = start_ts.tz_convert("UTC")
+        end_ts = pd.Timestamp(end)
+        if end_ts.tzinfo is None:
+            end_ts = end_ts.tz_localize("UTC")
+        else:
+            end_ts = end_ts.tz_convert("UTC")
         return df.loc[(df.index >= start_ts) & (df.index <= end_ts)]
 
     def _read_sqlite_direct(self, ticker: str, start: datetime, end: datetime) -> pd.DataFrame:
         """Direct SQLite fallback bypassing price_cache's no_data_tickers guard."""
         import sqlite3 as _sqlite3
+
         try:
             conn = _sqlite3.connect(self._db_path)
             rows = conn.execute(
@@ -73,9 +82,13 @@ class HistoricalProvider:
                 return pd.DataFrame()
             idx = pd.to_datetime([r[0] for r in rows])
             df = pd.DataFrame(
-                {"Open": [r[1] for r in rows], "High": [r[2] for r in rows],
-                 "Low": [r[3] for r in rows], "Close": [r[4] for r in rows],
-                 "Volume": [r[5] for r in rows]},
+                {
+                    "Open": [r[1] for r in rows],
+                    "High": [r[2] for r in rows],
+                    "Low": [r[3] for r in rows],
+                    "Close": [r[4] for r in rows],
+                    "Volume": [r[5] for r in rows],
+                },
                 index=idx,
             )
             return df
