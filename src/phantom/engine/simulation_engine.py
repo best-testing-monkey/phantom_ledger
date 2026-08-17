@@ -9,6 +9,7 @@ import pandas as pd
 from phantom.costs.engine import CostEngine
 from phantom.data.provider import DataProvider
 from phantom.db.repositories.account_repo import AccountRepo
+from phantom.db.repositories.broker_repo import BrokerRepo
 from phantom.db.repositories.dividend_log_repo import DividendLogRepo
 from phantom.db.repositories.equity_repo import EquityRepo
 from phantom.db.repositories.order_repo import OrderRepo
@@ -42,10 +43,12 @@ class SimulationEngine:
         self._overnight_log_repo = OvernightLogRepo(conn)
         self._dividend_log_repo = DividendLogRepo(conn)
         self._margin_engine = MarginEngine()
+        self._broker_repo = BrokerRepo(conn)
         self._order_manager = OrderManager(
             order_repo=self._order_repo,
             account_repo=self._account_repo,
             cost_engine=cost_engine,
+            broker_repo=self._broker_repo,
         )
         self._position_manager = PositionManager(
             position_repo=self._position_repo,
@@ -111,9 +114,7 @@ class SimulationEngine:
         return new_fills
 
     @staticmethod
-    def _mark_to_market(
-        open_positions: list, last_close: dict[str, float]
-    ) -> tuple[float, float]:
+    def _mark_to_market(open_positions: list, last_close: dict[str, float]) -> tuple[float, float]:
         """Compute market_value/unrealized P&L using each position's OWN
         ticker's last known Close price (carry-forward), falling back to
         entry_price only if that ticker was somehow never observed.
@@ -128,6 +129,19 @@ class SimulationEngine:
             for p in open_positions
         )
         return market_value, unrealized
+
+    @staticmethod
+    def _close_cash_return(position, closed, exit_costs) -> float:
+        """Cash to credit back to the account when a position closes.
+
+        Stock positions had their full notional deducted at entry, so the
+        full exit proceeds are credited back. CFD positions only had margin
+        posted at entry, so only the margin plus realized P&L comes back.
+        """
+        if position.instrument_type == "cfd":
+            entry_costs = position.commission_entry + position.spread_cost + position.slippage_cost
+            return position.margin_required + (closed.realized_pnl or 0.0) + entry_costs
+        return closed.exit_price * position.quantity - exit_costs.total
 
     def run_backtest(
         self,
@@ -211,7 +225,7 @@ class SimulationEngine:
                         ticker=position.ticker,
                         instrument_type=position.instrument_type,
                     )
-                    cash_return = exit_price * position.quantity - exit_costs.total
+                    cash_return = self._close_cash_return(position, closed, exit_costs)
                     acct = acct.model_copy(update={"cash": acct.cash + cash_return})
                     self._account_repo.update(acct)
                     closed_positions.append(self._position_repo.get(position.id))
@@ -567,9 +581,7 @@ class SimulationEngine:
                         bar_for_position = bars_today.get(position.ticker)
                         if bar_for_position is None:
                             continue
-                        result = self._position_manager.determine_close(
-                            position, bar_for_position
-                        )
+                        result = self._position_manager.determine_close(position, bar_for_position)
                         if result is not None:
                             exit_price, close_reason = result
                             closed = self._position_manager.close(
@@ -583,7 +595,7 @@ class SimulationEngine:
                                 ticker=position.ticker,
                                 instrument_type=position.instrument_type,
                             )
-                            cash_return = exit_price * position.quantity - exit_costs.total
+                            cash_return = self._close_cash_return(position, closed, exit_costs)
                             account.cash += cash_return
                             logger.info(
                                 "Position %s closed: %s at %.2f",
@@ -750,7 +762,7 @@ class SimulationEngine:
                         ticker=position.ticker,
                         instrument_type=position.instrument_type,
                     )
-                    cash_return = exit_price * position.quantity - exit_costs.total
+                    cash_return = self._close_cash_return(position, closed, exit_costs)
                     account.cash += cash_return
                     logger.info(
                         "Position %s closed: %s at %.2f",

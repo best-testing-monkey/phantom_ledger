@@ -30,7 +30,9 @@ class OrderAPI:
         account = self._account_repo.get(account_id)
         profile = self._broker_repo.get(account.broker_profile_id)
         cost_engine = CostEngine(profile)
-        return OrderManager(self._order_repo, self._account_repo, cost_engine)
+        return OrderManager(
+            self._order_repo, self._account_repo, cost_engine, broker_repo=self._broker_repo
+        )
 
     def place(self, account_id: str, order: Order) -> Order:
         with self._lock:

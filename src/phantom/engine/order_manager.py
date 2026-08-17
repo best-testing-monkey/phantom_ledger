@@ -4,6 +4,7 @@ import logging
 import pandas as pd
 
 from phantom.costs.engine import CostEngine
+from phantom.costs.margin import compute_margin_required
 from phantom.db.repositories.account_repo import AccountRepo
 from phantom.db.repositories.broker_repo import BrokerRepo
 from phantom.db.repositories.order_repo import OrderRepo
@@ -297,7 +298,17 @@ class OrderManager:
             instrument_type=order.instrument_type,
             fx_required=(account.base_currency != "USD"),
         )
-        total_deduction = order.fill_price * order.quantity + costs.total
+        notional = order.fill_price * order.quantity
+        if order.instrument_type == "cfd" and self._broker_repo is not None:
+            broker_profile = self._broker_repo.get(account.broker_profile_id)
+            margin_pct = broker_profile.margin.default_margin_pct
+            margin_required = compute_margin_required(order.quantity, order.fill_price, margin_pct)
+            leverage = 1.0 / margin_pct if margin_pct > 0 else 1.0
+            total_deduction = margin_required + costs.total
+        else:
+            margin_required = 0.0
+            leverage = 1.0
+            total_deduction = notional + costs.total
         if account.cash < total_deduction:
             raise InsufficientFundsError(
                 account_id=order.account_id,
@@ -313,7 +324,7 @@ class OrderManager:
             entry_price=order.fill_price,
             entry_datetime=order.filled_at,
             quantity=order.quantity,
-            notional=order.fill_price * order.quantity,
+            notional=notional,
             take_profit=order.take_profit,
             stop_loss=order.stop_loss,
             max_close_datetime=order.max_close_datetime,
@@ -321,6 +332,8 @@ class OrderManager:
             spread_cost=costs.spread,
             slippage_cost=costs.slippage,
             fx_conversion_cost=costs.fx,
+            margin_required=margin_required,
+            leverage=leverage,
         )
         account = account.model_copy(update={"cash": account.cash - total_deduction})
         position_repo.create(position)

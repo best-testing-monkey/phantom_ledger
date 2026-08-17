@@ -3,6 +3,7 @@ import pytest
 
 from phantom.costs.engine import CostEngine
 from phantom.db.repositories.account_repo import AccountRepo
+from phantom.db.repositories.broker_repo import BrokerRepo
 from phantom.db.repositories.order_repo import OrderRepo
 from phantom.db.repositories.position_repo import PositionRepo
 from phantom.engine.order_manager import OrderManager
@@ -116,6 +117,115 @@ def test_place_limit_order_insufficient_funds(setup_trading_env):
 
     with pytest.raises(InsufficientFundsError):
         env["manager"].place(env["account"].id, order)
+
+
+@pytest.fixture
+def setup_cfd_trading_env(db_conn):
+    from phantom.utils.datetime import to_iso
+    from phantom.utils.ids import new_id
+
+    account_repo = AccountRepo(db_conn)
+    order_repo = OrderRepo(db_conn)
+    position_repo = PositionRepo(db_conn)
+    broker_repo = BrokerRepo(db_conn)
+
+    broker_id = new_id()
+    # 10% margin => 10x leverage, CFDs supported.
+    profile_json = (
+        '{"name":"CFD_BROKER","commission":{"model_type":"fixed","fixed_fee":1.0},'
+        '"spread":{"model_type":"fixed","fixed_spread_pct":0.0005},'
+        '"slippage":{"model_type":"fixed_pct","fixed_pct":0.0003},'
+        '"overnight":{"long_markup_pct":0.0,"short_markup_pct":0.0,'
+        '"day_divisor":365,"rate_source":"manual","manual_rate":0.0},'
+        '"margin":{"default_margin_pct":0.1,"margin_call_level":1.5,"stop_out_level":1.0},'
+        '"dividend":{"withholding_rates":{"US":0.15},"cfd_dividend_adjustment":1.0,'
+        '"cfd_short_dividend_charge":1.0},'
+        '"fx_conversion_pct":0.0025,"fx_base_currency":"USD","min_order_size":1.0,'
+        '"max_leverage":10.0,"trading_hours":{"timezone":"America/New_York",'
+        '"open":"09:30","close":"16:00","pre_market":false,"post_market":false},'
+        '"supported_instruments":["stock","cfd"]}'
+    )
+    db_conn.execute(
+        """INSERT INTO broker_profiles
+        (id, name, config_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)""",
+        (broker_id, "CFD_BROKER", profile_json, to_iso(now_utc()), to_iso(now_utc())),
+    )
+    db_conn.commit()
+
+    account = Account(
+        name="cfd_account",
+        account_type="manual",
+        broker_profile_id=broker_id,
+        base_currency="USD",
+        initial_capital=10000.0,
+        cash=10000.0,
+    )
+    account_repo.create(account)
+
+    profile = BrokerProfile.model_validate_json(profile_json)
+    cost_engine = CostEngine(profile)
+    manager = OrderManager(order_repo, account_repo, cost_engine, broker_repo=broker_repo)
+
+    return {
+        "account": account,
+        "manager": manager,
+        "order_repo": order_repo,
+        "position_repo": position_repo,
+        "account_repo": account_repo,
+    }
+
+
+def test_handle_fill_cfd_deducts_margin_and_sets_leverage(setup_cfd_trading_env):
+    env = setup_cfd_trading_env
+    order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="cfd",
+        direction="long",
+        order_type="market",
+        quantity=10.0,
+        fill_price=100.0,
+        status="pending",
+    )
+    order = env["order_repo"].create(order)
+    order = order.model_copy(update={"fill_price": 100.0, "filled_at": now_utc()})
+
+    _, position = env["manager"].handle_fill(order, env["position_repo"])
+
+    # notional = 1000, margin_pct = 0.1 => margin_required = 100, leverage = 10x
+    assert position.notional == pytest.approx(1000.0)
+    assert position.margin_required == pytest.approx(100.0)
+    assert position.leverage == pytest.approx(10.0)
+
+    account = env["account_repo"].get(env["account"].id)
+    # Only margin + entry costs should have left the cash balance, not full notional.
+    expected_cash = 10000.0 - 100.0 - (position.commission_entry + position.spread_cost)
+    assert account.cash == pytest.approx(expected_cash, abs=1.0)
+    assert account.cash > 8000.0  # sanity: nowhere near full $1000 notional debited
+
+
+def test_handle_fill_stock_still_deducts_full_notional(setup_cfd_trading_env):
+    env = setup_cfd_trading_env
+    order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="long",
+        order_type="market",
+        quantity=10.0,
+        fill_price=100.0,
+        status="pending",
+    )
+    order = env["order_repo"].create(order)
+    order = order.model_copy(update={"fill_price": 100.0, "filled_at": now_utc()})
+
+    _, position = env["manager"].handle_fill(order, env["position_repo"])
+
+    assert position.margin_required == 0.0
+    assert position.leverage == 1.0
+    account = env["account_repo"].get(env["account"].id)
+    assert account.cash < 9001.0  # ~full $1000 notional + costs debited
 
 
 def test_evaluate_market_order(setup_trading_env):
