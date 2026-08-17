@@ -195,3 +195,23 @@ def test_list_empty(setup_test_data):
 
     orders = order_repo.list_by_account(account.id)
     assert orders == []
+
+
+def test_update_prices(setup_test_data):
+    db_conn, account = setup_test_data
+    order_repo = OrderRepo(db_conn)
+
+    order = Order(
+        account_id=account.id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="long",
+        order_type="limit",
+        quantity=10.0,
+        limit_price=150.0,
+    )
+    created = order_repo.create(order)
+
+    updated = order_repo.update_prices(created.id, {"limit_price": 155.0, "stop_loss": 140.0})
+    assert updated.limit_price == 155.0
+    assert updated.stop_loss == 140.0

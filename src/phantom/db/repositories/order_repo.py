@@ -2,7 +2,7 @@ import sqlite3
 
 from phantom.errors import NotFoundError
 from phantom.models.order import Order
-from phantom.utils.datetime import now_utc, parse_datetime, to_iso
+from phantom.utils.datetime import parse_datetime
 
 
 class OrderRepo:
@@ -67,9 +67,9 @@ class OrderRepo:
 
     def update_prices(self, order_id: str, updates: dict) -> Order:
         set_clauses = ", ".join(f"{k} = ?" for k in updates)
-        values = list(updates.values()) + [to_iso(now_utc()), order_id]
+        values = list(updates.values()) + [order_id]
         self._conn.execute(
-            f"UPDATE orders SET {set_clauses}, updated_at = ? WHERE id = ?",
+            f"UPDATE orders SET {set_clauses} WHERE id = ?",
             values,
         )
         self._conn.commit()
