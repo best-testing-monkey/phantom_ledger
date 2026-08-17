@@ -355,12 +355,15 @@ result = ph.runner.backtest(
     start: str | datetime,    # "YYYY-MM-DD" or datetime
     end: str | datetime,
     data_provider=None,       # defaults to HistoricalProvider (price_cache)
+    fine_data_provider=None,  # optional finer-resolution provider, see below
 ) -> BacktestResult
 ```
 
-Runs the simulation clock bar-by-bar over the union of every ticker's trading days in `[start, end]`. Each step: evaluates any **already-pending** orders for the given `tickers` against that bar (market orders fill unconditionally at that bar's `Open`; limit/stop/trailing orders fill only if triggered), checks open positions' TP/SL, applies overnight/dividend costs on day boundaries, and records an equity point.
+Runs the simulation clock bar-by-bar over the union of every ticker's trading days in `[start, end]`. Each step: evaluates any **already-pending** orders for the given `tickers` against that bar (market orders fill unconditionally at that bar's `Open`; limit/stop/trailing orders fill only if triggered), checks open positions' TP/SL, applies overnight/dividend costs on day boundaries, and records an equity point. Orders that can't be funded at fill time are marked `status="rejected"` rather than aborting the run — see `.rejected_orders` below.
 
-There is **no strategy-callback parameter** (an `on_bar` callback was previously documented here but does not exist in the code — `backtest()` takes exactly the five parameters above). To place orders programmatically, call `ph.orders.place()` **before** invoking `backtest()`; a pending order fills on the first bar of the run where its ticker has data. Since orders can only be queued up front, there's no way to react to a bar mid-run within a single `backtest()` call.
+There is **no strategy-callback parameter** (an `on_bar` callback was previously documented here but does not exist in the code — `backtest()` takes exactly the six parameters above). To place orders programmatically, call `ph.orders.place()` **before** invoking `backtest()`; a pending order fills on the first bar of the run where its ticker has data. Since orders can only be queued up front, there's no way to react to a bar mid-run within a single `backtest()` call.
+
+**`fine_data_provider`**: when a step's bar brackets both a position's take-profit AND stop-loss level (only that specific ambiguous case — otherwise this is never consulted, so it costs nothing when unused), `backtest()` normally has to guess which hit first via a fixed tie-break (`"conservative"` → always resolves to the stop-loss). Pass any object implementing `DataProvider.get_bars(ticker, start, end)` (e.g. an hourly-resolution provider for a daily-resolution run) and it's used to walk that day's finer bars in order to find which level was actually crossed first. Only affects TP/SL resolution during `backtest()`, not `paper_trade()`/margin-call/stop-out handling.
 
 **To open positions on different dates in one simulated run** (there's no callback to do this from inside the loop), place one order and run `backtest()` in date-range chunks, growing the `tickers` list as each new instrument's start date arrives — previously-opened positions keep having their TP/SL checked in later chunks as long as their ticker stays in the `tickers` list:
 
@@ -379,6 +382,7 @@ for ticker, entry_date, chunk_end, order in trades:   # your own trade plan
 | `.account` | `Account` | The account's state at the end of the run |
 | `.equity_curve` | `list[EquityPoint]` | Per-bar equity snapshots |
 | `.filled_orders` | `list[Order]` | Orders filled during this run |
+| `.rejected_orders` | `list[Order]` | Orders that couldn't be funded at fill time (`status="rejected"`) — doesn't abort the run, other orders that step still process |
 | `.closed_positions` | `list[Position]` | Positions closed (TP/SL/etc.) during this run |
 
 For Sharpe/CAGR/win-rate style metrics, call `ph.reports.account_metrics(account.name)` after the run (see [`ph.reports`](#ph-reports--reportapi)) rather than reading them off `BacktestResult`.
