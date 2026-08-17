@@ -571,6 +571,18 @@ profile = ph.brokers.validate("path/to/my-broker.json") -> BrokerProfile
 
 `get()` raises `NotFoundError` when a named profile hasn't been loaded. `load`/`create_from_dict`/`validate` raise `ProfileError` on malformed JSON or a schema that fails validation.
 
+### `BrokerProfile.margin.classes` — per-instrument margin rates
+
+```python
+profile = ph.brokers.get("IBKR")
+profile.margin.margin_pct_for("EURUSD=X")  # -> 0.03
+profile.margin.margin_pct_for("AAPL")      # -> profile.margin.default_margin_pct (no class matches)
+```
+
+`margin.classes` is a per-instrument-class margin-rate table: each entry is either an explicit `symbols` list or a `match` regex (checked via `re.fullmatch`), first match in list order wins, falling back to `default_margin_pct` when nothing matches. It's used internally by `handle_fill()`/`place()` to compute CFD margin — not something most callers touch directly, but worth knowing about if margin amounts look unexpectedly flat (i.e. every order landing on the same `default_margin_pct` regardless of instrument).
+
+The bundled `ibkr.json`/`xtb.json`/`degiro.json` profiles' `classes` cover BOTH broker-house-native ticker spellings (`"EURUSD"`, `"XAUUSD"`, bare `"BTC"`) AND Yahoo Finance/yfinance-style tickers (`"EURUSD=X"`, `"GC=F"`, `"BTC-USD"`, `"^GSPC"`) — but nothing else. A caller using a third ticker convention (or a data source whose symbols don't match either) will silently fall through to `default_margin_pct` for every order, with no error or warning raised. If margin amounts look flatter than expected, check `margin_pct_for()` against your own tickers directly rather than assuming coverage. To patch a loaded profile's `classes` for your own ticker convention, mutate `profile.margin.classes` and call `ph.brokers.update("IBKR", profile)` — it updates an already-loaded profile in place (raises `NotFoundError` if the name hasn't been loaded yet; it's not an upsert).
+
 ---
 
 ## `ph.reports` — `ReportAPI`
