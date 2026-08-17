@@ -1,6 +1,7 @@
+import re
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CommissionModel(BaseModel):
@@ -124,10 +125,34 @@ class OvernightModel(BaseModel):
         return charge
 
 
+class MarginClassRule(BaseModel):
+    label: str
+    symbols: list[str] | None = None
+    match: str | None = None
+    margin_pct: float
+
+
 class MarginModel(BaseModel):
     default_margin_pct: float
     margin_call_level: float
     stop_out_level: float
+    classes: list[MarginClassRule] = Field(default_factory=list)
+
+    def margin_pct_for(self, ticker: str) -> float:
+        """Look up the margin percentage for a specific ticker.
+
+        Checks `classes` in order (first match wins): an explicit `symbols`
+        list match takes priority, then a `match` regex (re.fullmatch).
+        Falls back to `default_margin_pct` when `classes` is empty or
+        nothing matches — this keeps existing single-rate profiles
+        (and any profile JSON with no "classes" key) working unchanged.
+        """
+        for rule in self.classes:
+            if rule.symbols and ticker in rule.symbols:
+                return rule.margin_pct
+            if rule.match and re.fullmatch(rule.match, ticker):
+                return rule.margin_pct
+        return self.default_margin_pct
 
 
 class DividendModel(BaseModel):

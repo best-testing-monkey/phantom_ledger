@@ -51,7 +51,9 @@ class OrderManager:
         if order.instrument_type == "cfd" and self._broker_repo is not None:
             broker_profile = self._broker_repo.get(account.broker_profile_id)
             required_margin = (
-                estimated_price * order.quantity * broker_profile.margin.default_margin_pct
+                estimated_price
+                * order.quantity
+                * broker_profile.margin.margin_pct_for(order.ticker)
             )
             if account.cash < required_margin:
                 raise MarginError(account_id=account_id, margin_level=0.0)
@@ -301,7 +303,7 @@ class OrderManager:
         notional = order.fill_price * order.quantity
         if order.instrument_type == "cfd" and self._broker_repo is not None:
             broker_profile = self._broker_repo.get(account.broker_profile_id)
-            margin_pct = broker_profile.margin.default_margin_pct
+            margin_pct = broker_profile.margin.margin_pct_for(order.ticker)
             margin_required = compute_margin_required(order.quantity, order.fill_price, margin_pct)
             leverage = 1.0 / margin_pct if margin_pct > 0 else 1.0
             total_deduction = margin_required + costs.total
@@ -347,6 +349,27 @@ class OrderManager:
         self._account_repo.update(account)
         logger.info("Order %s filled at %.2f", order.id, order.fill_price)
         return self._order_repo.get(order.id), position
+
+    def handle_fill_or_reject(
+        self, order: Order, position_repo: PositionRepo
+    ) -> tuple[Order, Position | None]:
+        """Fill an order, or mark it rejected if it can't be funded.
+
+        Unlike place_or_reject() (which creates a brand-new rejected order
+        row because the order doesn't exist yet at that point), the order
+        here already exists as a pending row — on failure this updates that
+        same row to status="rejected" rather than inserting a duplicate.
+
+        Returns (order, position) on success, or (rejected_order, None) if
+        the fill couldn't be funded.
+        """
+        try:
+            return self.handle_fill(order, position_repo)
+        except InsufficientFundsError:
+            rejected = self._order_repo.update_status(
+                order.id, "rejected", rejection_reason="insufficient_funds"
+            )
+            return rejected, None
 
     def create_oco_pair(
         self, account_id: str, take_profit_order: Order, stop_loss_order: Order

@@ -137,7 +137,9 @@ def setup_cfd_trading_env(db_conn):
         '"slippage":{"model_type":"fixed_pct","fixed_pct":0.0003},'
         '"overnight":{"long_markup_pct":0.0,"short_markup_pct":0.0,'
         '"day_divisor":365,"rate_source":"manual","manual_rate":0.0},'
-        '"margin":{"default_margin_pct":0.1,"margin_call_level":1.5,"stop_out_level":1.0},'
+        '"margin":{"default_margin_pct":0.1,"margin_call_level":1.5,"stop_out_level":1.0,'
+        '"classes":[{"label":"fx_majors","match":"^[A-Z]{3}(USD|EUR|GBP|JPY|CHF|AUD|CAD|NZD)$",'
+        '"margin_pct":0.03}]},'
         '"dividend":{"withholding_rates":{"US":0.15},"cfd_dividend_adjustment":1.0,'
         '"cfd_short_dividend_charge":1.0},'
         '"fx_conversion_pct":0.0025,"fx_base_currency":"USD","min_order_size":1.0,'
@@ -203,6 +205,49 @@ def test_handle_fill_cfd_deducts_margin_and_sets_leverage(setup_cfd_trading_env)
     expected_cash = 10000.0 - 100.0 - (position.commission_entry + position.spread_cost)
     assert account.cash == pytest.approx(expected_cash, abs=1.0)
     assert account.cash > 8000.0  # sanity: nowhere near full $1000 notional debited
+
+
+def test_handle_fill_cfd_uses_per_class_margin_rate(setup_cfd_trading_env):
+    env = setup_cfd_trading_env
+
+    fx_order = Order(
+        account_id=env["account"].id,
+        ticker="EURUSD",
+        instrument_type="cfd",
+        direction="long",
+        order_type="market",
+        quantity=10.0,
+        fill_price=100.0,
+        status="pending",
+    )
+    fx_order = env["order_repo"].create(fx_order)
+    fx_order = fx_order.model_copy(update={"fill_price": 100.0, "filled_at": now_utc()})
+    _, fx_position = env["manager"].handle_fill(fx_order, env["position_repo"])
+
+    equity_order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="cfd",
+        direction="long",
+        order_type="market",
+        quantity=10.0,
+        fill_price=100.0,
+        status="pending",
+    )
+    equity_order = env["order_repo"].create(equity_order)
+    equity_order = equity_order.model_copy(update={"fill_price": 100.0, "filled_at": now_utc()})
+    _, equity_position = env["manager"].handle_fill(equity_order, env["position_repo"])
+
+    # EURUSD matches the fx_majors class => 3% margin => 30, 33.33x leverage.
+    assert fx_position.margin_required == pytest.approx(30.0)
+    assert fx_position.leverage == pytest.approx(1.0 / 0.03)
+
+    # AAPL matches no class => falls back to default_margin_pct (10%) => 100, 10x leverage.
+    assert equity_position.margin_required == pytest.approx(100.0)
+    assert equity_position.leverage == pytest.approx(10.0)
+
+    assert fx_position.margin_required != equity_position.margin_required
+    assert fx_position.leverage != equity_position.leverage
 
 
 def test_handle_fill_stock_still_deducts_full_notional(setup_cfd_trading_env):
@@ -697,6 +742,41 @@ def test_place_or_reject_insufficient_funds(setup_trading_env):
     rejected = env["manager"].place_or_reject(env["account"].id, order)
     assert rejected.status == "rejected"
     assert rejected.rejection_reason == "insufficient_funds"
+
+
+def test_handle_fill_or_reject_insufficient_funds(setup_trading_env):
+    env = setup_trading_env
+    # quantity * fill_price (200 * 100 = 20000) far exceeds the account's
+    # 10000 cash, so the fill cannot be funded.
+    order = Order(
+        account_id=env["account"].id,
+        ticker="AAPL",
+        instrument_type="stock",
+        direction="long",
+        order_type="market",
+        quantity=200.0,
+        fill_price=100.0,
+        status="pending",
+    )
+    order = env["order_repo"].create(order)
+    order = order.model_copy(update={"fill_price": 100.0, "filled_at": now_utc()})
+
+    orders_before = env["order_repo"].list_by_account(env["account"].id)
+    assert len(orders_before) == 1
+
+    rejected_order, position = env["manager"].handle_fill_or_reject(order, env["position_repo"])
+
+    assert position is None
+    assert rejected_order.status == "rejected"
+    assert rejected_order.rejection_reason == "insufficient_funds"
+
+    # The existing pending row was updated in place, not duplicated.
+    refetched = env["order_repo"].get(order.id)
+    assert refetched.status == "rejected"
+    assert refetched.rejection_reason == "insufficient_funds"
+
+    orders_after = env["order_repo"].list_by_account(env["account"].id)
+    assert len(orders_after) == 1
 
 
 def test_create_oco_pair(setup_trading_env):

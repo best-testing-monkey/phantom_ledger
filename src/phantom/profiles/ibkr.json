@@ -38,7 +38,13 @@
     "margin": {
         "default_margin_pct": 0.25,
         "margin_call_level": 1.5,
-        "stop_out_level": 1.0
+        "stop_out_level": 1.0,
+        "classes": [
+            {"label": "fx_majors", "match": "^[A-Z]{3}(USD|EUR|GBP|JPY|CHF|AUD|CAD|NZD)$", "margin_pct": 0.03},
+            {"label": "index_commodity", "symbols": ["SPX500", "US30", "NAS100", "UK100", "GER40", "XAUUSD", "GOLD"], "margin_pct": 0.05},
+            {"label": "other_commodity", "symbols": ["OIL", "WTI", "BRENT", "XAGUSD", "SILVER"], "margin_pct": 0.10},
+            {"label": "crypto", "match": "^(BTC|ETH|XRP|LTC|BCH)(USD|EUR)?$", "margin_pct": 1.0}
+        ]
     },
     "dividend": {
         "cfd_dividend_adjustment": 1.0,
