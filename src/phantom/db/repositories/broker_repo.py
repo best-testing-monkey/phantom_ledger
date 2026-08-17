@@ -55,6 +55,16 @@ class BrokerRepo:
         ).fetchall()
         return [BrokerProfile.model_validate_json(r["config_json"]) for r in rows]
 
+    def update(self, profile: BrokerProfile) -> BrokerProfile:
+        cursor = self._conn.execute(
+            "UPDATE broker_profiles SET config_json = ?, updated_at = ? WHERE name = ?",
+            (profile.model_dump_json(), to_iso(now_utc()), profile.name),
+        )
+        if cursor.rowcount == 0:
+            raise NotFoundError("BrokerProfile", profile.name)
+        self._conn.commit()
+        return profile
+
     def delete(self, name: str) -> None:
         cursor = self._conn.execute("DELETE FROM broker_profiles WHERE name = ?", (name,))
         if cursor.rowcount == 0:

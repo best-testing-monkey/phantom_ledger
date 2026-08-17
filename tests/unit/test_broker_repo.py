@@ -44,3 +44,38 @@ def test_broker_repo_delete_nonexistent(db_conn):
     repo = BrokerRepo(db_conn)
     with pytest.raises(NotFoundError):
         repo.delete("NONEXISTENT")
+
+
+def test_broker_repo_update(db_conn, degiro_profile):
+    repo = BrokerRepo(db_conn)
+    repo.create(degiro_profile)
+
+    # Modify the profile and update it
+    modified = degiro_profile.model_copy(update={"max_leverage": 99.0})
+    repo.update(modified)
+
+    # Verify the update persisted
+    retrieved = repo.get_by_name("DEGIRO_TEST")
+    assert retrieved.max_leverage == 99.0
+
+
+def test_broker_repo_update_preserves_id(db_conn, degiro_profile):
+    repo = BrokerRepo(db_conn)
+    repo.create(degiro_profile)
+
+    # Capture the ID before update
+    id_before = repo.get_id_by_name("DEGIRO_TEST")
+
+    # Modify and update the profile
+    modified = degiro_profile.model_copy(update={"max_leverage": 50.0})
+    repo.update(modified)
+
+    # Verify the ID is unchanged
+    id_after = repo.get_id_by_name("DEGIRO_TEST")
+    assert id_before == id_after
+
+
+def test_broker_repo_update_nonexistent(db_conn, degiro_profile):
+    repo = BrokerRepo(db_conn)
+    with pytest.raises(NotFoundError):
+        repo.update(degiro_profile)

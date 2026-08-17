@@ -26,3 +26,14 @@ class BrokerAPI:
 
     def validate(self, path: str) -> BrokerProfile:
         return load_profile(path)
+
+    def update(self, name: str, profile: BrokerProfile) -> BrokerProfile:
+        """Update an already-loaded broker profile's config, preserving its id.
+
+        Raises NotFoundError if no profile named `name` exists yet - this is
+        not an upsert. If `profile.name` differs from `name`, the profile is
+        renamed to `name` (the row is matched by `name`, so they must agree).
+        """
+        if profile.name != name:
+            profile = profile.model_copy(update={"name": name})
+        return self._repo.update(profile)
