@@ -15,21 +15,24 @@ class MarginEngine:
     """Margin level tracking and enforcement for CFD accounts."""
 
     def check(
-        self, account: Account, broker_profile: BrokerProfile, open_position_market_value: float
+        self, account: Account, broker_profile: BrokerProfile, open_positions: list[Position]
     ) -> MarginStatus:
         """Check margin status and return status snapshot.
 
         Args:
             account: The account to check
             broker_profile: Broker profile with margin settings
-            open_position_market_value: Current market value of all open positions
+            open_positions: List of all open positions (any instrument_type).
+                Only CFD positions contribute to used_margin; each position's
+                own stored margin_required is used rather than recomputing a
+                rate-based estimate.
 
         Returns:
             MarginStatus with level, status ("ok", "margin_call", or "stop_out"),
             and broker margin thresholds.
         """
-        # Get sum of margin_required for all open CFD positions
-        used_margin = open_position_market_value * broker_profile.margin.default_margin_pct
+        # Sum of margin_required for all open CFD positions
+        used_margin = sum(p.margin_required for p in open_positions if p.instrument_type == "cfd")
 
         # Equity is current cash
         equity = account.cash
@@ -109,13 +112,18 @@ class MarginEngine:
         current_bar_timestamp: datetime,
         position_manager,
         account_repo: AccountRepo,
+        last_close: dict[str, float],
     ) -> list[Position]:
         """Handle stop-out cascade: force-close positions until recovered.
 
-        Sorts positions by unrealized_pnl (ascending, largest loss first).
+        Only CFD positions are candidates for forced closure (stock positions
+        carry no real margin exposure and are never liquidated by this path).
+        Sorts candidate positions by a real unrealized P&L (ascending, largest
+        loss first) computed from last_close/entry_price/quantity/direction —
+        Position.unrealized_pnl is a permanent 0.0 stub and is not used here.
         For each position, checks if margin recovered. If not, closes position
-        at bar's close price. Continues until margin recovers above stop_out_level
-        or all positions are closed.
+        at its ticker's last known close price. Continues until margin recovers
+        above stop_out_level or all candidates are closed.
 
         Args:
             account: The account
@@ -124,26 +132,38 @@ class MarginEngine:
             current_bar_timestamp: Current bar timestamp
             position_manager: PositionManager instance for closing positions
             account_repo: Account repository for updating cash
+            last_close: Per-ticker last known Close price, used both to
+                compute each candidate's real unrealized P&L for sort order
+                and as the forced-close exit price (falls back to
+                position.entry_price if a ticker was never observed).
 
         Returns:
             List of closed positions from the cascade
         """
         closed_positions = []
 
-        # Sort by unrealized_pnl ascending (largest loss first)
-        sorted_positions = sorted(open_positions, key=lambda p: p.unrealized_pnl or 0.0)
+        def _unrealized_pnl(p: Position) -> float:
+            current_price = last_close.get(p.ticker, p.entry_price)
+            if p.direction == "long":
+                return (current_price - p.entry_price) * p.quantity
+            return (p.entry_price - current_price) * p.quantity
+
+        # Only CFD positions carry real margin exposure and are eligible for
+        # forced closure; stock positions must never be liquidated here.
+        cfd_positions = [p for p in open_positions if p.instrument_type == "cfd"]
+
+        # Sort by real unrealized P&L ascending (largest loss first)
+        sorted_positions = sorted(cfd_positions, key=_unrealized_pnl)
 
         stop_out_level = broker_profile.margin.stop_out_level
 
         for position in sorted_positions:
-            # Compute current margin level after previous closes
-            remaining_market_value = sum(
-                p.notional for p in open_positions if p.id not in [cp.id for cp in closed_positions]
-            )
-            used_margin = (
-                remaining_market_value * broker_profile.margin.default_margin_pct
-                if remaining_market_value > 0
-                else 0
+            # Compute current margin level after previous closes, using each
+            # remaining CFD position's own stored margin_required.
+            used_margin = sum(
+                p.margin_required
+                for p in cfd_positions
+                if p.id not in [cp.id for cp in closed_positions]
             )
             equity = account.cash
 
@@ -154,11 +174,11 @@ class MarginEngine:
 
             # Check if still in stop-out
             if margin_level <= stop_out_level:
-                # Force close this position at close price
-                # Use close price as 0.0 for now (caller will provide actual price)
+                # Force close this position at its ticker's last known close
+                # price (falls back to entry price, never a fake zero).
                 closed = position_manager.close(
                     position,
-                    exit_price=0.0,
+                    exit_price=last_close.get(position.ticker, position.entry_price),
                     close_reason="margin_call",
                     bar_timestamp=current_bar_timestamp,
                 )
@@ -170,12 +190,12 @@ class MarginEngine:
                     "Force-closed position %s for account %s due to stop-out: unrealized P&L %s",
                     position.id,
                     account.id,
-                    position.unrealized_pnl,
+                    _unrealized_pnl(position),
                 )
 
-        # Check if fully liquidated and still in stop-out
+        # Check if fully liquidated (all CFD candidates closed) and still in stop-out
         if closed_positions and all(
-            p.id in [cp.id for cp in closed_positions] for p in open_positions
+            p.id in [cp.id for cp in closed_positions] for p in cfd_positions
         ):
             used_margin = 0
             equity = account.cash
