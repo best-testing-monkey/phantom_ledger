@@ -49,6 +49,7 @@ class RunnerAPI:
         start: str | datetime,
         end: str | datetime,
         data_provider=None,
+        fine_data_provider=None,
     ) -> BacktestResult:
         account = self._account_repo.get(account_id)
         profile = self._broker_repo.get(account.broker_profile_id)
@@ -62,6 +63,7 @@ class RunnerAPI:
             conn=self._conn,
             data_provider=data_provider,
             cost_engine=cost_engine,
+            fine_data_provider=fine_data_provider,
         )
         return engine.run_backtest(account_id=account_id, tickers=tickers, start=start, end=end)
 

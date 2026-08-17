@@ -442,6 +442,163 @@ def test_both_tp_and_sl_hit_conservative(position_manager, db_conn):
     assert result[1] == "sl"
 
 
+class _FakeFineProvider:
+    """Minimal DataProvider-shaped stub: only get_bars() is used by
+    determine_close()'s intrabar resolution."""
+
+    def __init__(self, df: pd.DataFrame):
+        self._df = df
+
+    def get_bars(self, ticker, start, end):
+        return self._df
+
+
+class _RaisingFineProvider:
+    """Fine provider that fails the test if get_bars() is ever invoked —
+    used to prove the lazy-fetch behavior (no I/O in the non-ambiguous case)."""
+
+    def get_bars(self, ticker, start, end):
+        raise AssertionError("should not be called")
+
+
+def test_intrabar_resolution_sl_crossed_first(position_manager, db_conn):
+    position_repo = PositionRepo(db_conn)
+    pos, _ = _setup_account_and_position(db_conn, position_repo)
+
+    coarse_bar = pd.Series(
+        {
+            "Open": 150.0,
+            "High": 161.0,
+            "Low": 138.0,
+            "Close": 150.0,
+        },
+        name=pd.Timestamp("2025-01-02"),
+    )
+
+    fine_df = pd.DataFrame(
+        {
+            "Open": [150.0, 151.0, 139.0],
+            "High": [152.0, 151.0, 161.0],
+            "Low": [151.0, 138.0, 139.0],
+            "Close": [151.0, 139.0, 160.0],
+        },
+        index=pd.DatetimeIndex(
+            [
+                pd.Timestamp("2025-01-02 09:00:00"),
+                pd.Timestamp("2025-01-02 10:00:00"),
+                pd.Timestamp("2025-01-02 11:00:00"),
+            ]
+        ),
+    )
+
+    result = position_manager.determine_close(
+        pos, coarse_bar, fine_data_provider=_FakeFineProvider(fine_df)
+    )
+    assert result is not None
+    assert result[0] == 140.0
+    assert result[1] == "sl"
+
+
+def test_intrabar_resolution_tp_crossed_first(position_manager, db_conn):
+    position_repo = PositionRepo(db_conn)
+    pos, _ = _setup_account_and_position(db_conn, position_repo)
+
+    coarse_bar = pd.Series(
+        {
+            "Open": 150.0,
+            "High": 161.0,
+            "Low": 138.0,
+            "Close": 150.0,
+        },
+        name=pd.Timestamp("2025-01-02"),
+    )
+
+    # TP triggers on the earlier fine bar (10:00), SL only on the later one
+    # (11:00). mode="conservative" would ALWAYS pick "sl" via the fallback
+    # resolve_tp_sl_conflict() path, so this is the test that actually
+    # proves the intrabar walk is running rather than always falling
+    # through to the naive default.
+    fine_df = pd.DataFrame(
+        {
+            "Open": [150.0, 150.0, 151.0],
+            "High": [152.0, 161.0, 151.0],
+            "Low": [151.0, 145.0, 138.0],
+            "Close": [151.0, 160.0, 139.0],
+        },
+        index=pd.DatetimeIndex(
+            [
+                pd.Timestamp("2025-01-02 09:00:00"),
+                pd.Timestamp("2025-01-02 10:00:00"),
+                pd.Timestamp("2025-01-02 11:00:00"),
+            ]
+        ),
+    )
+
+    result = position_manager.determine_close(
+        pos, coarse_bar, fine_data_provider=_FakeFineProvider(fine_df)
+    )
+    assert result is not None
+    assert result[0] == 160.0
+    assert result[1] == "tp"
+
+
+def test_no_fine_provider_preserves_existing_behavior(position_manager, db_conn):
+    position_repo = PositionRepo(db_conn)
+    pos, _ = _setup_account_and_position(db_conn, position_repo)
+
+    coarse_bar = pd.Series(
+        {
+            "Open": 150.0,
+            "High": 161.0,
+            "Low": 138.0,
+            "Close": 150.0,
+        },
+        name=pd.Timestamp("2025-01-02"),
+    )
+
+    # No fine_data_provider argument at all — default conservative mode.
+    result = position_manager.determine_close(pos, coarse_bar)
+    assert result is not None
+    assert result[0] == 140.0
+    assert result[1] == "sl"
+
+    # Explicit fine_data_provider=None behaves identically.
+    result_explicit_none = position_manager.determine_close(
+        pos, coarse_bar, fine_data_provider=None
+    )
+    assert result_explicit_none == result
+
+    # Non-default mode still works untouched when no fine provider is given.
+    result_optimistic = position_manager.determine_close(
+        pos, coarse_bar, mode="optimistic", fine_data_provider=None
+    )
+    assert result_optimistic is not None
+    assert result_optimistic[0] == 160.0
+    assert result_optimistic[1] == "tp"
+
+
+def test_fine_provider_not_consulted_when_unambiguous(position_manager, db_conn):
+    position_repo = PositionRepo(db_conn)
+    pos, _ = _setup_account_and_position(db_conn, position_repo)
+
+    # Only TP is hit here (High=161 >= take_profit=160.0, Low=155 > stop_loss=140.0)
+    # — not ambiguous, so the fine provider's get_bars() must never be called.
+    bar = pd.Series(
+        {
+            "Open": 155.0,
+            "High": 161.0,
+            "Low": 155.0,
+            "Close": 160.0,
+        },
+        name=pd.Timestamp("2025-01-02"),
+    )
+
+    result = position_manager.determine_close(pos, bar, fine_data_provider=_RaisingFineProvider())
+    assert result is not None
+    assert result[0] == 160.0
+    assert result[1] == "tp"
+
+
 def test_close_computes_realized_pnl(position_manager, db_conn):
     position_repo = PositionRepo(db_conn)
     pos, _ = _setup_account_and_position(db_conn, position_repo)

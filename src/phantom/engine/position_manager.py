@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 import pandas as pd
@@ -239,8 +239,46 @@ class PositionManager:
 
         return adjustment
 
+    def _resolve_intrabar(
+        self, position: Position, bar: pd.Series, mode: str, fine_data_provider
+    ) -> tuple[float, str]:
+        """Resolve an ambiguous same-bar TP+SL hit using finer-resolution bars
+        if available, falling back to resolve_tp_sl_conflict() otherwise (or if
+        the finer bars don't actually resolve the ambiguity themselves)."""
+        if fine_data_provider is not None:
+            bar_ts = bar.name.to_pydatetime() if hasattr(bar.name, "to_pydatetime") else bar.name
+            day_start = bar_ts.replace(hour=0, minute=0, second=0, microsecond=0)
+            day_end = day_start + timedelta(days=1)
+            try:
+                fine_bars = fine_data_provider.get_bars(position.ticker, day_start, day_end)
+            except Exception:
+                fine_bars = None
+            if fine_bars is not None and not fine_bars.empty:
+                fine_bars = fine_bars.sort_index()
+                for _, fbar in fine_bars.iterrows():
+                    fhigh, flow = float(fbar["High"]), float(fbar["Low"])
+                    if position.direction == "long":
+                        ftp = position.take_profit is not None and fhigh >= position.take_profit
+                        fsl = position.stop_loss is not None and flow <= position.stop_loss
+                    else:
+                        ftp = position.take_profit is not None and flow <= position.take_profit
+                        fsl = position.stop_loss is not None and fhigh >= position.stop_loss
+                    if ftp and fsl:
+                        break  # still ambiguous even at this resolution — fall through
+                    if ftp:
+                        return position.take_profit, "tp"
+                    if fsl:
+                        return position.stop_loss, "sl"
+        reason = resolve_tp_sl_conflict(position, bar, mode)
+        price = position.take_profit if reason == "tp" else position.stop_loss
+        return price, reason
+
     def determine_close(
-        self, position: Position, bar: pd.Series, mode: str = "conservative"
+        self,
+        position: Position,
+        bar: pd.Series,
+        mode: str = "conservative",
+        fine_data_provider=None,
     ) -> tuple[float, str] | None:
         """Determine what triggered the close and at what price.
 
@@ -273,9 +311,7 @@ class PositionManager:
             tp_hit = position.take_profit is not None and high >= position.take_profit
             sl_hit = position.stop_loss is not None and low <= position.stop_loss
             if tp_hit and sl_hit:
-                reason = resolve_tp_sl_conflict(position, bar, mode)
-                price = position.take_profit if reason == "tp" else position.stop_loss
-                return price, reason
+                return self._resolve_intrabar(position, bar, mode, fine_data_provider)
             elif tp_hit:
                 return position.take_profit, "tp"
             elif sl_hit:
@@ -286,9 +322,7 @@ class PositionManager:
             tp_hit = position.take_profit is not None and low <= position.take_profit
             sl_hit = position.stop_loss is not None and high >= position.stop_loss
             if tp_hit and sl_hit:
-                reason = resolve_tp_sl_conflict(position, bar, mode)
-                price = position.take_profit if reason == "tp" else position.stop_loss
-                return price, reason
+                return self._resolve_intrabar(position, bar, mode, fine_data_provider)
             elif tp_hit:
                 return position.take_profit, "tp"
             elif sl_hit:
