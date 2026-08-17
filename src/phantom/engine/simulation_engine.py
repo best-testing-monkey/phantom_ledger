@@ -32,10 +32,12 @@ class SimulationEngine:
         conn: sqlite3.Connection,
         data_provider: DataProvider,
         cost_engine: CostEngine,
+        fine_data_provider=None,
     ):
         self._conn = conn
         self._data_provider = data_provider
         self._cost_engine = cost_engine
+        self._fine_data_provider = fine_data_provider
         self._account_repo = AccountRepo(conn)
         self._order_repo = OrderRepo(conn)
         self._position_repo = PositionRepo(conn)
@@ -168,6 +170,7 @@ class SimulationEngine:
         )
         clock = BacktestClock(master_index)
         filled_orders: list = []
+        rejected_orders: list = []
         closed_positions: list = []
         last_close: dict[str, float] = {}
 
@@ -195,9 +198,17 @@ class SimulationEngine:
 
             new_fills = self._evaluate_pending_orders(active, bars_today)
             for filled_order in new_fills:
-                filled_order_obj, position = self._order_manager.handle_fill(
+                filled_order_obj, position = self._order_manager.handle_fill_or_reject(
                     filled_order, self._position_repo
                 )
+                if position is None:
+                    logger.info(
+                        "Order %s rejected at fill time: %s",
+                        filled_order_obj.id,
+                        filled_order_obj.rejection_reason,
+                    )
+                    rejected_orders.append(filled_order_obj)
+                    continue
                 filled_orders.append(filled_order_obj)
                 logger.info(
                     "Order %s filled at %.2f", filled_order_obj.id, filled_order_obj.fill_price
@@ -210,7 +221,9 @@ class SimulationEngine:
                     # No bar for this position's ticker today - defer to the
                     # next step where its ticker has data.
                     continue
-                result = self._position_manager.determine_close(position, bar_for_position)
+                result = self._position_manager.determine_close(
+                    position, bar_for_position, fine_data_provider=self._fine_data_provider
+                )
                 if result is not None:
                     exit_price, close_reason = result
                     bar_ts = current_time
@@ -251,6 +264,7 @@ class SimulationEngine:
             account=account,
             equity_curve=equity_curve,
             filled_orders=filled_orders,
+            rejected_orders=rejected_orders,
             closed_positions=closed_positions,
         )
 
@@ -419,12 +433,7 @@ class SimulationEngine:
         if not has_cfd:
             return open_positions
 
-        # Calculate market value
-        open_position_market_value = sum(p.notional for p in open_positions)
-
-        margin_status = self._margin_engine.check(
-            account, broker_profile, open_position_market_value
-        )
+        margin_status = self._margin_engine.check(account, broker_profile, open_positions)
 
         if margin_status.status == "stop_out":
             closed = self._margin_engine.handle_stop_out(
@@ -434,9 +443,10 @@ class SimulationEngine:
                 current_bar_timestamp=current_time,
                 position_manager=self._position_manager,
                 account_repo=self._account_repo,
+                last_close=last_close,
             )
 
-            # Deduct exit costs and update account cash, using each closed
+            # Credit back cash and update account, using each closed
             # position's OWN ticker's last known Close price.
             for closed_pos in closed:
                 close_price = last_close.get(closed_pos.ticker, 0.0)
@@ -446,7 +456,7 @@ class SimulationEngine:
                     ticker=closed_pos.ticker,
                     instrument_type=closed_pos.instrument_type,
                 )
-                account.cash -= exit_costs.total
+                account.cash += self._close_cash_return(closed_pos, closed_pos, exit_costs)
                 self._position_repo.update(closed_pos)
 
             self._account_repo.update(account)
@@ -544,9 +554,16 @@ class SimulationEngine:
 
                     new_fills = self._evaluate_pending_orders(active, bars_today)
                     for filled_order in new_fills:
-                        filled_order_obj, position = self._order_manager.handle_fill(
+                        filled_order_obj, position = self._order_manager.handle_fill_or_reject(
                             filled_order, self._position_repo
                         )
+                        if position is None:
+                            logger.info(
+                                "Order %s rejected at fill time: %s",
+                                filled_order_obj.id,
+                                filled_order_obj.rejection_reason,
+                            )
+                            continue
                         logger.info(
                             "Order %s filled at %.2f",
                             filled_order_obj.id,
@@ -706,9 +723,16 @@ class SimulationEngine:
 
             new_fills = self._evaluate_pending_orders(active, bars_today)
             for filled_order in new_fills:
-                filled_order_obj, position = self._order_manager.handle_fill(
+                filled_order_obj, position = self._order_manager.handle_fill_or_reject(
                     filled_order, self._position_repo
                 )
+                if position is None:
+                    logger.info(
+                        "Order %s rejected at fill time: %s",
+                        filled_order_obj.id,
+                        filled_order_obj.rejection_reason,
+                    )
+                    continue
                 logger.info(
                     "Order %s filled at %.2f",
                     filled_order_obj.id,

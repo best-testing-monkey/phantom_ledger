@@ -11,4 +11,5 @@ class BacktestResult:
     account: Account
     equity_curve: list[EquityPoint] = field(default_factory=list)
     filled_orders: list[Order] = field(default_factory=list)
+    rejected_orders: list[Order] = field(default_factory=list)
     closed_positions: list[Position] = field(default_factory=list)
