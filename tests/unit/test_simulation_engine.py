@@ -4,11 +4,16 @@ handle_fill() propagated straight out of run_backtest()'s fill loop,
 aborting processing for every other order that step.
 """
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pandas as pd
+import pytest
 
+from phantom.costs.engine import CostBreakdown
+from phantom.engine.position_manager import PositionManager
 from phantom.models.order import Order
+from phantom.models.position import Position
 
 
 def _mock_provider_for(ticker_frames: dict[str, pd.DataFrame]) -> MagicMock:
@@ -136,3 +141,80 @@ class TestFillBatchPartialFailure:
         # rejection must not have deducted anything.
         expected_cash = 10000.0 - (10 * 300.0) - (10 * 50.0)
         assert result.account.cash == expected_cash
+
+
+class TestCloseCashReturnCFD:
+    """E17-S05 knock-on fix: PositionManager.close() now includes
+    position.fx_conversion_cost in realized_pnl. close_cash_return()'s CFD
+    branch adds an `entry_costs` figure back to realized_pnl to recover cash
+    equal to margin_required + gross_pnl - exit_costs.total; if entry_costs
+    didn't also include fx_conversion_cost, the larger-magnitude realized_pnl
+    would cause cash to be under-credited by exactly fx_conversion_cost.
+
+    E17-S06 moved this helper from SimulationEngine._close_cash_return()
+    (a private staticmethod) to PositionManager.close_cash_return() (a
+    public staticmethod, shared with PositionAPI.close()) — logic unchanged.
+    """
+
+    def test_cfd_close_does_not_double_subtract_fx_cost(self):
+        margin_required = 500.0
+        entry_price = 100.0
+        exit_price = 110.0
+        quantity = 20.0
+        commission_entry = 2.0
+        spread_cost = 1.5
+        slippage_cost = 0.8
+        fx_conversion_cost = 12.0
+
+        position = Position(
+            account_id="acct1",
+            ticker="EURUSD",
+            instrument_type="cfd",
+            direction="long",
+            entry_order_id="ord1",
+            entry_price=entry_price,
+            entry_datetime=datetime(2025, 1, 2, tzinfo=timezone.utc),
+            quantity=quantity,
+            notional=entry_price * quantity,
+            commission_entry=commission_entry,
+            spread_cost=spread_cost,
+            slippage_cost=slippage_cost,
+            fx_conversion_cost=fx_conversion_cost,
+            margin_required=margin_required,
+        )
+
+        exit_costs = CostBreakdown(
+            commission=1.5,
+            spread=1.1,
+            slippage=0.6,
+            fx=0.0,
+            total=1.5 + 1.1 + 0.6,
+        )
+
+        gross_pnl = (exit_price - entry_price) * quantity
+
+        # realized_pnl as PositionManager.close() now produces it: gross_pnl
+        # minus ALL cost fields, including the entry-side fx_conversion_cost.
+        realized_pnl = gross_pnl - (
+            commission_entry
+            + exit_costs.commission
+            + spread_cost
+            + exit_costs.spread
+            + slippage_cost
+            + exit_costs.slippage
+            + fx_conversion_cost
+        )
+
+        closed = position.model_copy(
+            update={"realized_pnl": realized_pnl, "exit_price": exit_price, "status": "closed"}
+        )
+
+        cash_return = PositionManager.close_cash_return(position, closed, exit_costs)
+
+        # Independently-computed expected cash: margin returned plus gross
+        # P&L, minus only the EXIT-side costs. Entry-side costs (including
+        # fx_conversion_cost) were already debited from cash at fill time
+        # and must not be subtracted again here.
+        expected_cash_return = margin_required + gross_pnl - exit_costs.total
+
+        assert cash_return == pytest.approx(expected_cash_return)

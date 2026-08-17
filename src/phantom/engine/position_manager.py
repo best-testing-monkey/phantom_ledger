@@ -3,7 +3,7 @@ import logging
 
 import pandas as pd
 
-from phantom.costs.engine import CostEngine
+from phantom.costs.engine import CostBreakdown, CostEngine
 from phantom.db.repositories.account_repo import AccountRepo
 from phantom.db.repositories.dividend_log_repo import DividendLogRepo
 from phantom.db.repositories.overnight_log_repo import OvernightLogRepo
@@ -330,6 +330,24 @@ class PositionManager:
             else:
                 return None
 
+    @staticmethod
+    def close_cash_return(position, closed, exit_costs: CostBreakdown) -> float:
+        """Cash to credit back to the account when a position closes.
+
+        Stock positions had their full notional deducted at entry, so the
+        full exit proceeds are credited back. CFD positions only had margin
+        posted at entry, so only the margin plus realized P&L comes back.
+        """
+        if position.instrument_type == "cfd":
+            entry_costs = (
+                position.commission_entry
+                + position.spread_cost
+                + position.slippage_cost
+                + position.fx_conversion_cost
+            )
+            return position.margin_required + (closed.realized_pnl or 0.0) + entry_costs
+        return closed.exit_price * position.quantity - exit_costs.total
+
     def close(
         self, position: Position, exit_price: float, close_reason: str, bar_timestamp: datetime
     ) -> Position:
@@ -357,6 +375,7 @@ class PositionManager:
             + costs.spread
             + position.slippage_cost
             + costs.slippage
+            + position.fx_conversion_cost
         )
         realized_pnl = gross_pnl - all_costs
 

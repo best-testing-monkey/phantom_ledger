@@ -87,30 +87,45 @@ class PositionAPI:
             if quantity == position.quantity:
                 # Full close: use existing manager close logic
                 manager = PositionManager(self._position_repo, self._account_repo, cost_engine)
-                closed = manager.close(position, exit_price, close_reason, exit_datetime or now_utc())
+                closed = manager.close(
+                    position, exit_price, close_reason, exit_datetime or now_utc()
+                )
                 account_before = self._account_repo.get(position.account_id)
                 account_updated = account_before.model_copy(
-                    update={"cash": account_before.cash + exit_price * quantity - costs.total}
+                    update={
+                        "cash": account_before.cash
+                        + manager.close_cash_return(position, closed, costs)
+                    }
                 )
                 self._position_repo.update(closed)
                 self._account_repo.update(account_updated)
                 # Record equity snapshot so the chart reflects the closed cash value
-                EquityRepo(self._conn).create(EquityPoint(
-                    account_id=position.account_id,
-                    timestamp=to_iso(closed.exit_datetime),
-                    equity=account_updated.cash,
-                    cash=account_updated.cash,
-                    unrealized_pnl=0.0,
-                ))
+                EquityRepo(self._conn).create(
+                    EquityPoint(
+                        account_id=position.account_id,
+                        timestamp=to_iso(closed.exit_datetime),
+                        equity=account_updated.cash,
+                        cash=account_updated.cash,
+                        unrealized_pnl=0.0,
+                    )
+                )
                 return closed
             else:
                 # Partial close: decrement position quantity, accumulate realized P&L
+                fraction = quantity / position.quantity
+                proportional_entry_costs = (
+                    position.commission_entry
+                    + position.spread_cost
+                    + position.slippage_cost
+                    + position.fx_conversion_cost
+                ) * fraction
+
                 if position.direction == "long":
                     gross_pnl = (exit_price - position.entry_price) * quantity
                 else:
                     gross_pnl = (position.entry_price - exit_price) * quantity
 
-                realized_pnl_increment = gross_pnl - costs.total
+                realized_pnl_increment = gross_pnl - proportional_entry_costs - costs.total
                 new_realized_pnl = (position.realized_pnl or 0) + realized_pnl_increment
 
                 # Update position: decrement quantity, accumulate realized P&L
@@ -124,8 +139,13 @@ class PositionAPI:
 
                 # Credit cash to account
                 account_before = self._account_repo.get(position.account_id)
+                if position.instrument_type == "cfd":
+                    released_margin = position.margin_required * fraction
+                    cash_delta = released_margin + gross_pnl - costs.total
+                else:
+                    cash_delta = exit_price * quantity - costs.total
                 account_updated = account_before.model_copy(
-                    update={"cash": account_before.cash + exit_price * quantity - costs.total}
+                    update={"cash": account_before.cash + cash_delta}
                 )
 
                 self._position_repo.update(updated_position)

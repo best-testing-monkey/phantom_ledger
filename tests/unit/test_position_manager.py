@@ -611,3 +611,49 @@ def test_close_computes_realized_pnl(position_manager, db_conn):
     assert closed.realized_pnl is not None
     gross_pnl = (155.0 - 150.0) * 10.0
     assert closed.realized_pnl <= gross_pnl
+
+
+def test_close_subtracts_fx_conversion_cost_from_realized_pnl(position_manager, db_conn):
+    """E17-S05: fx_conversion_cost (entry-side FX conversion cost, real money
+    that already left the account at fill time) must be subtracted when
+    computing realized_pnl, same as the other three entry-side cost fields."""
+    position_repo = PositionRepo(db_conn)
+    pos, _ = _setup_account_and_position(db_conn, position_repo)
+
+    # Give the position the entry-side costs it would have had from a real
+    # fill, including a non-zero fx_conversion_cost.
+    pos = pos.model_copy(
+        update={
+            "commission_entry": 1.0,
+            "spread_cost": 0.75,
+            "slippage_cost": 0.45,
+            "fx_conversion_cost": 25.0,
+        }
+    )
+
+    bar_ts = pd.Timestamp("2025-01-02").to_pydatetime()
+    exit_price = 155.0
+    closed = position_manager.close(pos, exit_price, "manual", bar_ts)
+
+    # Independently compute the expected exit-side costs using the same
+    # broker profile params as test_profile(), rather than re-deriving the
+    # production formula: commission is a fixed $1.0 fee; spread is
+    # 0.0005 * price * quantity; slippage is 0.0003 * price * quantity.
+    quantity = 10.0
+    expected_exit_commission = 1.0
+    expected_exit_spread = 0.0005 * exit_price * quantity
+    expected_exit_slippage = 0.0003 * exit_price * quantity
+
+    expected_gross_pnl = (exit_price - 150.0) * quantity
+    expected_all_costs = (
+        1.0  # entry commission
+        + expected_exit_commission
+        + 0.75  # entry spread
+        + expected_exit_spread
+        + 0.45  # entry slippage
+        + expected_exit_slippage
+        + 25.0  # entry fx_conversion_cost
+    )
+    expected_realized_pnl = expected_gross_pnl - expected_all_costs
+
+    assert closed.realized_pnl == pytest.approx(expected_realized_pnl)
