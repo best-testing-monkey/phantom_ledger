@@ -33,8 +33,29 @@ ph = Phantom(data_dir="./data", in_memory=True)   # ephemeral SQLite, useful for
 | `ph.brokers` | `BrokerAPI` | Load and inspect broker profiles |
 | `ph.reports` | `ReportAPI` | Build metrics, equity curves, cost comparisons |
 | `ph.runner` | `RunnerAPI` | Run backtests and paper trading |
+| `ph.replay` | `RunnerAPI` | Alias for `ph.runner` (same object) — used for `replay_position` |
 
-Multiple instances can coexist. All mutating operations acquire an internal `threading.RLock`, so it is safe to share a single `Phantom` instance across threads.
+Multiple instances can coexist. `accounts`, `orders`, and `positions` mutations (`create`, `delete`, `place`, `cancel`†, `close`, `modify`) share one internal `threading.RLock`, so it's safe to call those concurrently across threads on a shared `Phantom` instance. `notes` and `runner`/`replay` are **not** lock-protected — don't call them concurrently on the same instance from multiple threads.
+
+† `orders.cancel()` does not currently take the lock — see [Thread safety](#thread-safety).
+
+### Getting started: loading broker profiles
+
+A fresh `data_dir` has **no broker profiles registered** — `Phantom.__init__` does not seed them automatically. Every `accounts.create(broker=...)` call below assumes the named profile has already been loaded once:
+
+```python
+from pathlib import Path
+import phantom
+
+ph = phantom.Phantom(data_dir="./data")
+
+# Load every bundled profile (DEGIRO, IBKR, XTB) once per data_dir
+profiles_dir = Path(phantom.__file__).parent / "profiles"
+for f in profiles_dir.glob("*.json"):
+    ph.brokers.load(str(f))
+```
+
+The CLI's `phantom broker seed` command does exactly this. Calling `accounts.create(broker="IBKR")` before the profile is loaded raises `NotFoundError`.
 
 ---
 
@@ -57,7 +78,7 @@ account = ph.accounts.create(
 ) -> Account
 ```
 
-Raises `ValidationError` if `name` already exists.
+Note: account names are **not** enforced unique — creating two accounts with the same `name` both succeed silently (there's no code path that raises `ValidationError` for a duplicate name). Use `ph.accounts.get(id_or_name)` by ID if you need to disambiguate.
 
 ```python
 # Manual trading account
@@ -104,7 +125,7 @@ Returns all accounts; pass `account_type` to filter.
 ph.accounts.delete(account_id: str) -> None
 ```
 
-Deletes the account and all its positions. Irreversible.
+Deletes the account row. Irreversible. **Does not cascade**: foreign keys are enforced (`PRAGMA foreign_keys = ON`), so deleting an account that still has orders or positions raises a raw `sqlite3.IntegrityError` (not a `PhantomError` subclass) and leaves the account undeleted. Close/cancel everything under the account first.
 
 ### `get_margin_summary`
 
@@ -140,10 +161,10 @@ For aggregate accounts, combines child account equity curves (outer join + forwa
 ### `place`
 
 ```python
-filled_order = ph.orders.place(account_id: str, order: Order) -> Order
+pending_order = ph.orders.place(account_id: str, order: Order) -> Order
 ```
 
-Validates broker support for the instrument type and direction, deducts margin for CFDs, and either fills the order immediately (market) or queues it as pending. Raises `ValidationError`, `InsufficientFundsError`, or `MarginError` on failure.
+Validates broker support for the instrument type and direction, then creates the order with `status="pending"` — **`place()` never fills an order itself, even a market order.** Fills happen when the engine evaluates pending orders against a price bar: during `ph.runner.backtest()`, during a paper-trading tick, or immediately via `ph.orders.fill_manual()` below. Raises `ValidationError` or `InsufficientFundsError` on failure (a limit/stop CFD order with insufficient margin can additionally raise `MarginError`; market CFD orders can't be margin-checked at `place()` time since there's no price yet — margin is checked and deducted at fill time instead).
 
 ```python
 from phantom import Order
@@ -201,6 +222,8 @@ orders = ph.orders.list(
 ) -> list[Order]
 ```
 
+**`account_name=None` returns `[]`**, not orders across all accounts (unlike `ph.positions.list()`) — always pass `account_name`.
+
 ### `cancel`
 
 ```python
@@ -208,6 +231,39 @@ cancelled = ph.orders.cancel(order_id: str) -> Order
 ```
 
 Raises `ValidationError` if the order is not in `pending` status.
+
+### `fill_manual`
+
+```python
+filled_order, position = ph.orders.fill_manual(
+    order_id: str,
+    fill_price: float,
+    fill_datetime: datetime | None = None,   # defaults to now_utc()
+) -> tuple[Order, Position]
+```
+
+The only way to fill a pending order (including a market order) outside a running backtest or paper-trading tick — stamps the order with the given price/time and runs it through the same fill logic the engine uses, creating the resulting `Position`. Raises `ValidationError` if the order is not `pending` or `fill_price <= 0`.
+
+```python
+order = ph.orders.place(account_id=account.id, order=Order(
+    account_id=account.id, ticker="AAPL", instrument_type="stock",
+    direction="long", order_type="market", quantity=10,
+))
+filled, position = ph.orders.fill_manual(order.id, fill_price=182.50)
+```
+
+### `modify`
+
+```python
+updated = ph.orders.modify(
+    order_id: str,
+    limit_price: float | None = None,
+    stop_loss: float | None = None,
+    take_profit: float | None = None,
+) -> Order
+```
+
+Updates price fields on a still-pending order. Raises `ValidationError` if the order is not `pending`, or if no fields were given.
 
 ---
 
@@ -225,7 +281,7 @@ positions = ph.positions.list(
 ) -> list[Position]
 ```
 
-When `account_name` is `None`, returns all open positions across all accounts.
+**When `account_name` is `None`, `status`/`pattern_tag`/`algorithm_version`/`replay_completed_at` are all silently ignored** — the call is hardcoded to open positions across every account (`ph.positions.list(status="closed")` with no `account_name` still returns *open* positions, not closed ones). Pass `account_name` whenever you use any filter other than the default.
 
 ```python
 # All open positions
@@ -257,10 +313,14 @@ closed_position = ph.positions.close(
     position_id: str,
     close_reason: str = "manual",   # "tp"|"sl"|"trailing_stop"|"max_time"|"margin_call"|"manual"
     exit_price: float | None = None,
+    quantity: float | None = None,  # None = close in full
+    exit_datetime: datetime | None = None,  # defaults to now_utc()
 ) -> Position
 ```
 
-Raises `ValidationError` if position is not open or `exit_price` is not supplied.
+Raises `ValidationError` if position is not open, `exit_price` is not supplied, `quantity <= 0`, or `quantity` exceeds the open size.
+
+Passing `quantity` less than the position's full size does a **partial close**: it decrements `position.quantity`, accumulates the realized P&L on the (still-open) position, and returns that resized position rather than a fully closed one — `updated.status` stays `"open"`.
 
 ### `modify`
 
@@ -295,29 +355,33 @@ result = ph.runner.backtest(
     start: str | datetime,    # "YYYY-MM-DD" or datetime
     end: str | datetime,
     data_provider=None,       # defaults to HistoricalProvider (price_cache)
-    on_bar=None,              # strategy callback (see below)
 ) -> BacktestResult
 ```
 
-`BacktestResult` attributes:
+Runs the simulation clock bar-by-bar over the union of every ticker's trading days in `[start, end]`. Each step: evaluates any **already-pending** orders for the given `tickers` against that bar (market orders fill unconditionally at that bar's `Open`; limit/stop/trailing orders fill only if triggered), checks open positions' TP/SL, applies overnight/dividend costs on day boundaries, and records an equity point.
+
+There is **no strategy-callback parameter** (an `on_bar` callback was previously documented here but does not exist in the code — `backtest()` takes exactly the five parameters above). To place orders programmatically, call `ph.orders.place()` **before** invoking `backtest()`; a pending order fills on the first bar of the run where its ticker has data. Since orders can only be queued up front, there's no way to react to a bar mid-run within a single `backtest()` call.
+
+**To open positions on different dates in one simulated run** (there's no callback to do this from inside the loop), place one order and run `backtest()` in date-range chunks, growing the `tickers` list as each new instrument's start date arrives — previously-opened positions keep having their TP/SL checked in later chunks as long as their ticker stays in the `tickers` list:
+
+```python
+tickers = []
+for ticker, entry_date, chunk_end, order in trades:   # your own trade plan
+    tickers.append(ticker)
+    ph.orders.place(account_id=account.id, order=order)
+    ph.runner.backtest(account_id=account.id, tickers=tickers, start=entry_date, end=chunk_end)
+```
+
+`BacktestResult` (`@dataclass`, not the `.equity_metrics`/`.trade_metrics`/`.positions` shape previously shown here) attributes:
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `.equity_metrics` | `EquityMetrics` | Return, CAGR, drawdown, Sharpe, Sortino |
-| `.trade_metrics` | `TradeMetrics` | Trade count, win rate, profit factor, expectancy |
-| `.positions` | `list[Position]` | All positions opened during the run |
+| `.account` | `Account` | The account's state at the end of the run |
 | `.equity_curve` | `list[EquityPoint]` | Per-bar equity snapshots |
+| `.filled_orders` | `list[Order]` | Orders filled during this run |
+| `.closed_positions` | `list[Position]` | Positions closed (TP/SL/etc.) during this run |
 
-#### Strategy callback
-
-```python
-def on_bar(bar: dict, account: Account, positions: list[Position]) -> list[Order]:
-    ...
-```
-
-`bar` keys: `"Open"`, `"High"`, `"Low"`, `"Close"`, `"Volume"`, `"datetime"` (UTC).
-
-Return an empty list to do nothing, or a list of `Order` objects to place. Orders are evaluated against the current bar before moving to the next.
+For Sharpe/CAGR/win-rate style metrics, call `ph.reports.account_metrics(account.name)` after the run (see [`ph.reports`](#ph-reports--reportapi)) rather than reading them off `BacktestResult`.
 
 ```python
 result = ph.runner.backtest(
@@ -325,10 +389,12 @@ result = ph.runner.backtest(
     tickers=["AAPL"],
     start="2023-01-01",
     end="2023-12-31",
-    on_bar=my_strategy,
 )
-print(f"Sharpe: {result.equity_metrics.sharpe_ratio:.2f}")
-print(f"Trades: {result.trade_metrics.trade_count}")
+print(f"Closed {len(result.closed_positions)} positions, ending cash {result.account.cash:.2f}")
+
+metrics = ph.reports.account_metrics(account.name)
+print(f"Sharpe: {metrics['equity'].sharpe_ratio:.2f}")
+print(f"Trades: {metrics['trades'].trade_count}")
 ```
 
 ### `paper_trade` (blocking)
@@ -393,6 +459,14 @@ handle = ph.runner.paper_trade_background(
 handle.stop()
 ```
 
+### `replay_position`
+
+```python
+replayed = ph.runner.replay_position(position: Position) -> Position
+```
+
+Also reachable as `ph.replay.replay_position(...)` (`ph.replay` is an alias for the same `RunnerAPI` instance). Re-runs a single position against historical price data via `ReplayEngine`, e.g. to re-evaluate TP/SL/costs for a position created outside a backtest. Pairs with `ph.positions.reset_replay()` above and the CLI's `phantom replay` commands.
+
 ---
 
 ## `ph.notes` — `NoteAPI`
@@ -428,11 +502,21 @@ note = ph.notes.get(note_id)
 # Update content
 updated = ph.notes.update(note_id, content="Updated content...")
 
+# Delete a note (removes both the DB row and the markdown file)
+ph.notes.delete(note_id)
+
+# Convenience wrapper around create() — content first, title optional (defaults to "")
+note = ph.notes.add(position_id=position.id, account_id=account.id, content="Quick note")
+
 # Search across all notes for an account
 from phantom.notes.manager import SearchResult
 
 results: list[SearchResult] = ph.notes.search(account_id=account.id, keyword="golden cross")
-# SearchResult.note_id, SearchResult.title, SearchResult.snippet
+# This is a literal line-by-line grep across every .md file under notes/{account_id}/,
+# not a per-note title/snippet search:
+#   SearchResult.file_path    e.g. "notes/<account_id>/<position_id>/<note_id>.md"
+#   SearchResult.line_number  1-indexed line where the keyword matched
+#   SearchResult.line         the full matching line's text
 ```
 
 ---
@@ -443,61 +527,69 @@ results: list[SearchResult] = ph.notes.search(account_id=account.id, keyword="go
 # Fetch and cache OHLCV data (uses price_cache SQLite backend)
 df = ph.data.fetch_prices(
     ticker: str,
-    start: str | datetime,   # "YYYY-MM-DD" or datetime
-    end: str | datetime,
+    start: datetime,         # datetime only — see caveat below
+    end: datetime,
 ) -> pd.DataFrame            # DatetimeIndex (UTC), columns: Open/High/Low/Close/Volume
 
 # Fetch and cache a reference rate
 rates = ph.data.fetch_rates(
     rate: str,               # "SOFR" or "ESTR" (case-insensitive)
-    start: str | datetime,
-    end: str | datetime,
+    start: datetime,
+    end: datetime,
 ) -> pd.Series
 ```
 
-Both methods raise `DataError` on network failure.
+Both take `datetime` only (not the `"YYYY-MM-DD"` strings accepted elsewhere in this library, e.g. `ph.runner.backtest()`). `fetch_prices` raises `DataError` on a genuine `price_cache`/network failure — but **passing a string for `start`/`end` does not raise `DataError`**: the type error happens inside a broad `except Exception` in the underlying provider that's meant to catch "no data available," so it's swallowed and an empty `DataFrame` is returned silently. Always pass real `datetime` objects. `fetch_rates` raises `DataError` on network failure or an unrecognized `rate` name.
+
+`ph.data.list()` also exists but is an unimplemented stub — it unconditionally returns `[]`.
 
 ---
 
 ## `ph.brokers` — `BrokerAPI`
 
 ```python
-# List bundled profiles
+# List profiles already loaded into this data_dir's DB (not the bundled JSON files —
+# see "Getting started: loading broker profiles" above to load those first)
 profiles = ph.brokers.list() -> list[BrokerProfile]
 
-# Get a profile by name
+# Get a loaded profile by name
 profile = ph.brokers.get("IBKR") -> BrokerProfile
 
-# Load a custom JSON profile from disk
-profile = ph.brokers.load_from_file("path/to/my-broker.json") -> BrokerProfile
+# Load a JSON profile from disk and persist it into the DB
+profile = ph.brokers.load("path/to/my-broker.json") -> BrokerProfile
+
+# Build and persist a profile directly from a dict, instead of a file
+profile = ph.brokers.create_from_dict({...}) -> BrokerProfile
+
+# Parse and validate a profile JSON WITHOUT persisting it (dry run)
+profile = ph.brokers.validate("path/to/my-broker.json") -> BrokerProfile
 ```
 
-Raises `NotFoundError` when a named profile does not exist. Raises `ProfileError` on malformed JSON.
+`get()` raises `NotFoundError` when a named profile hasn't been loaded. `load`/`create_from_dict`/`validate` raise `ProfileError` on malformed JSON or a schema that fails validation.
 
 ---
 
 ## `ph.reports` — `ReportAPI`
 
+`ReportAPI` has exactly two methods — there is no `equity_metrics()`, `trade_metrics()`, `cost_summary()`, `export_csv()`, or `compare_brokers()` on `ph.reports` (previous versions of this doc described a 5-method surface that was never implemented):
+
 ```python
-from phantom.reports.metrics import EquityMetrics, TradeMetrics, CostSummary, EquityPoint
+# Equity + trade + cost metrics, built from the account's closed positions.
+# Built from realized P&L at each position's exit — NOT the bar-by-bar
+# equity_curve a backtest records, so it needs no prior backtest() call.
+metrics: dict = ph.reports.account_metrics(account_name)
+# {
+#   "equity": EquityMetrics,   # present only if there are >= 2 closed positions
+#   "trades": TradeMetrics,    # present only if there is >= 1 closed position
+#   "costs":  CostSummary,     # always present (aggregated across ALL positions, open or closed)
+# }
+metrics["costs"].total_cost
 
-# Compute equity metrics from an equity curve
-metrics: EquityMetrics = ph.reports.equity_metrics(account_name)
-
-# Compute trade metrics from closed positions
-trade_metrics: TradeMetrics = ph.reports.trade_metrics(account_name)
-
-# Aggregate cost summary across all positions
-costs: CostSummary = ph.reports.cost_summary(account_name)
-
-# Export equity curve to CSV
-rows_written = ph.reports.export_csv(account_name, path="equity.csv")
-
-# Compare costs across broker profiles
-comparison: dict[str, CostSummary] = ph.reports.compare_brokers(
-    account_name, profile_names=["IBKR", "DEGIRO", "XTB"]
-)
+# Aggregate cost summary across all of the account's positions (same as metrics["costs"])
+costs: CostSummary = ph.reports.cost_breakdown(account_name)
 ```
+
+Both raise `NotFoundError` if `account_name` doesn't match an account. If you need the equity curve itself (for a chart, or to export to CSV), read it off a `BacktestResult.equity_curve` from `ph.runner.backtest()` — there is no report method that fetches it independently, and no CSV-export or cross-broker-comparison method exposed on `ph.reports` at all (equivalent logic exists as free functions — `export_equity_csv()` in `phantom.reports.exporters` and `compare_broker_costs()` in `phantom.reports.cost_comparison` — but neither is wired up on the public `ReportAPI`).
 
 ### `EquityMetrics` fields
 
@@ -594,11 +686,11 @@ class CostBreakdown:
     commission: float
     spread: float
     slippage: float
-    overnight: float
     fx: float
-    dividend: float
     total: float
 ```
+
+Note: `overnight_cost()` and `dividend_adjustment()` above return a plain `float` each, not a `CostBreakdown` — there's no `overnight`/`dividend` field on `CostBreakdown` itself.
 
 ---
 
@@ -650,6 +742,7 @@ class Order(BaseModel):
     filled_at: datetime | None
     fill_price: float | None
     good_til: datetime | None          # order expiry
+    max_close_datetime: datetime | None  # copied onto the resulting Position on fill
     rejection_reason: str | None
     position_id: str | None            # set after fill
     oco_sibling_id: str | None         # linked OCO order
@@ -710,8 +803,10 @@ class Position(BaseModel):
     created_at: datetime
 
     # Computed
-    unrealized_pnl: float              # @computed_field; 0.0 for closed positions
+    unrealized_pnl: float              # @computed_field
 ```
+
+`unrealized_pnl` is currently a **non-functional placeholder**: it always returns `0.0`, for open positions too, not just closed ones — the code comment marks it as needing a current-price input it doesn't yet have. Don't rely on it for open P&L; compute it yourself from a current price and `entry_price`/`quantity`/`direction` if you need it.
 
 ---
 
@@ -775,17 +870,20 @@ CloseReason    = Literal["tp", "sl", "trailing_stop", "max_time", "margin_call",
 
 ## Testing
 
-Use `in_memory=True` to get a throwaway SQLite database — no file created, no cleanup needed.
+`in_memory=True` skips creating the `phantom.db` SQLite file — but `data_dir`'s `prices/`, `rates/`, and `notes/` subdirectories are still created on disk (`ph.notes` always writes real markdown files there, regardless of the in-memory DB), so pass a throwaway `data_dir` in tests, e.g. `tmp_path`.
 
 ```python
 import pytest
 from phantom import Phantom
+from phantom.models.order import Order
 
 @pytest.fixture
-def ph():
-    return Phantom(data_dir="./data", in_memory=True)
+def ph(tmp_path):
+    instance = Phantom(data_dir=str(tmp_path), in_memory=True)
+    instance.brokers.load("src/phantom/profiles/degiro.json")   # see "Getting started" above
+    return instance
 
-def test_place_order(ph):
+def test_place_and_fill_order(ph):
     account = ph.accounts.create(
         name="test", account_type="manual", broker="DEGIRO", capital=1_000.0
     )
@@ -800,7 +898,11 @@ def test_place_order(ph):
             quantity=5,
         ),
     )
-    assert order.status == "filled"
+    assert order.status == "pending"          # place() never fills, even market orders
+
+    filled, position = ph.orders.fill_manual(order.id, fill_price=180.0)
+    assert filled.status == "filled"
+    assert position.quantity == 5
 ```
 
 Never mock the database — use the in-memory fixture instead. Mock only external HTTP calls (price fetches, rate fetches) with `unittest.mock.patch`.
@@ -809,7 +911,9 @@ Never mock the database — use the in-memory fixture instead. Mock only externa
 
 ## Thread safety
 
-All mutating operations (`accounts.create`, `accounts.delete`, `orders.place`, `orders.cancel`, `positions.close`, `positions.modify`) are protected by an internal `threading.RLock`. Read operations (`get`, `list`) are not locked and may be called concurrently.
+`accounts.create`, `accounts.delete`, `orders.place`, `positions.close`, and `positions.modify` are protected by one internal `threading.RLock` shared by those three sub-APIs. Read operations (`get`, `list`) are not locked and may be called concurrently.
+
+**Not** covered by that lock, despite being mutating calls: `orders.cancel()` (a real gap — the other `OrderAPI` methods take the lock, this one doesn't), and everything on `notes` and `runner`/`replay` (`NoteAPI` and `RunnerAPI` are constructed without any lock at all). Don't call those concurrently on a shared `Phantom` instance from multiple threads without your own external locking.
 
 ```python
 import threading
